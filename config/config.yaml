@@ -1,0 +1,3 @@
+my_config_field: my_config_field_value
+my_env: ${oc.env:MY_ENV}
+my_secret: ${oc.env:MY_SECRET}

@@ -1,0 +1,55 @@
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  # ---- Fast checks (dedicated pre-commit hooks) ----
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.2
+    hooks:
+      - id: ruff-format
+      - id: ruff
+        args: [--fix]
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.13.9
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+
+  # ---- Project-level checks (use project venv via uv run) ----
+
+  - repo: local
+    hooks:
+      - id: pyright
+        name: pyright
+        entry: uv run pyright
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: interrogate
+        name: interrogate
+        entry: uv run interrogate src/
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: pytest
+        name: pytest
+        entry: uv run pytest
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+
+      - id: pip-audit
+        name: pip-audit
+        entry: uv run pip-audit --ignore-vuln PYSEC-2022-42969 # ignore python-semantic-release vulnerability, only affects development
+        language: system
+        pass_filenames: false
+        always_run: true

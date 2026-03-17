@@ -1,0 +1,22 @@
+semantic-release:
+  extends: .uv-base
+  stage: release
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - |
+      NEXT=$(uv run semantic-release version --print-tag 2>/dev/null | tail -1)
+      CURRENT=$(uv run semantic-release version --print-last-released-tag 2>/dev/null | tail -1)
+      VERSION=${NEXT:-$CURRENT}
+      echo "VERSION=$VERSION" >> release.env
+      echo "Version: $VERSION"
+    - |
+      if [ -n "$NEXT" ]; then
+        git remote set-url origin "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+        uv run semantic-release version
+      else
+        echo "No release needed"
+      fi
+  artifacts:
+    reports:
+      dotenv: release.env

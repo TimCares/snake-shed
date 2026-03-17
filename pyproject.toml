@@ -1,9 +1,10 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src"]
+[tool.uv.build-backend]
+module-name = "src"
+module-root = ""
 
 
 [project]
@@ -42,6 +43,7 @@ target-version = "py313"
 line-length = 100
 src = ["src"]
 fix = true
+exclude = ["tests/"]
 
 [tool.ruff.lint]
 select = [
@@ -86,17 +88,11 @@ ignore = [
     "D104",   # __init__.py docstrings — unnecessary boilerplate
     "TRY003", # long exception messages — too strict for real-world code
     "ISC001", # implicit string concat single-line — conflicts with ruff formatter
+    "PTH123", # Unnceessary verbose "Path.open" instead of "open" for files
+    "ANN401", # Any not allowed for *args and **kwargs, leads to awkward code
 ]
 
-[tool.ruff.lint.per-file-ignores]
-"tests/**" = [
-    "D",       # no docstring requirements in tests
-    "ANN",     # no type-annotation requirements in tests
-    "S101",    # allow assert statements
-    "ARG",     # allow unused args (pytest fixtures)
-    "PLR2004", # allow magic numbers in assertions
-    "PT011",   # allow broad pytest.raises()
-]
+
 
 [tool.ruff.lint.pylint]
 max-args = 8
@@ -115,10 +111,11 @@ docstring-code-format = true
 # =============================================================================
 
 [tool.interrogate]
-fail-under = 70
+paths = ["src"]
+fail-under = 90
 ignore-init-method = true
 ignore-init-module = true
-ignore-module = true
+ignore-nested-functions = true
 exclude = ["tests"]
 
 
@@ -140,12 +137,16 @@ reportMissingTypeStubs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
 addopts = [
     "--strict-markers",
     "--strict-config",
     "-ra",
+    "-v",
+    "--tb=short",
+    "--durations=10",
 ]
-filterwarnings = ["error"]
 
 
 # =============================================================================
@@ -155,6 +156,7 @@ filterwarnings = ["error"]
 [tool.coverage.run]
 source = ["src"]
 branch = true
+omit = ["tests/*", "*/__init__.py"]
 
 [tool.coverage.report]
 fail_under = 80
@@ -162,6 +164,7 @@ show_missing = true
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
+    "@abstractmethod",
     'if __name__ == "__main__"',
 ]
 

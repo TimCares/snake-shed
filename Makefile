@@ -1,6 +1,14 @@
 PY=uv
+PIP_AUDIT_ARGS ?= --ignore-vuln PYSEC-2022-42969
+PYTEST_ARGS ?=
+PYTEST_COV_REPORT_ARGS ?= --cov-report=xml
 
-.PHONY: help
+.DEFAULT_GOAL := help
+
+# =============================================================================
+# Help
+# =============================================================================
+
 help:  ## Show this help message
 	@echo "Makefile Commands"
 	@echo "=============================="
@@ -11,10 +19,8 @@ help:  ## Show this help message
 # ============================================================================
 
 .PHONY: bootstrap
-bootstrap:  ## Initial project setup (install Python, create venv, sync all deps)
+bootstrap: install-dev pre-commit-install ## Full project setup (deps + pre-commit hooks)
 	$(PY) python install $$(cat .python-version)
-	$(PY) venv
-	$(PY) sync --group dev
 
 .PHONY: install
 install:  ## Install only production dependencies
@@ -22,54 +28,78 @@ install:  ## Install only production dependencies
 
 .PHONY: install-dev
 install-dev:  ## Install production + development dependencies
-	$(PY) sync --group dev
+	$(PY) sync --dev
 
 .PHONY: pre-commit-install
 pre-commit-install:  ## Install pre-commit hooks
-	$(PY) run pre-commit install --hook-type commit-msg --hook-type pre-commit
+	$(PY) run pre-commit install
 
-# ============================================================================
-# Development Workflow
-# ============================================================================
-
-.PHONY: test
-test:  ## Run tests with pytest
-	$(PY) run pytest
-
-.PHONY: test-cov
-test-cov:  ## Run tests with coverage report
-	$(PY) run pytest --cov --cov-report=term-missing
-
-.PHONY: lint
-lint:  ## Lint code with ruff
-	$(PY) run ruff check .
-
-.PHONY: lint-fix
-lint-fix:  ## Lint and auto-fix issues with ruff
-	$(PY) run ruff check --fix .
-
-.PHONY: type
-type:  ## Type check with pyright
-	$(PY) run pyright
+# =============================================================================
+# Code Quality
+# =============================================================================
 
 .PHONY: format-check
-format-check:  ## Check code formatting with ruff
+format-check: ## Check code formatting without changes
 	$(PY) run ruff format --check .
 
 .PHONY: format
-format:  ## Format code with ruff
+format: ## Format code (ruff)
 	$(PY) run ruff format .
+
+.PHONY: lint-check
+lint-check: ## Run linter check (ruff)
+	$(PY) run ruff check .
+
+.PHONY: lint
+lint: ## Run linter and auto-fix issues
+	$(PY) run ruff check --fix .
+
+.PHONY: type-check
+type-check:  ## Type check with pyright
+	$(PY) run pyright
+
+.PHONY: docstring-check
+docstring-check: ## Check docstring coverage
+	$(PY) run interrogate -v
+
+.PHONY: repo-check
+repo-check: ## Run repository hygiene checks from pre-commit
+	$(PY) run pre-commit run check-yaml --all-files
+	$(PY) run pre-commit run check-toml --all-files
+	$(PY) run pre-commit run check-added-large-files --all-files
+	$(PY) run pre-commit run check-merge-conflict --all-files
+	$(PY) run pre-commit run debug-statements --all-files
+
+# =============================================================================
+# Testing
+# =============================================================================
+
+.PHONY: test
+test:  ## Run tests with pytest
+	$(PY) run pytest $(PYTEST_ARGS)
+
+.PHONY: test-cov
+test-cov:  ## Run tests with coverage report
+	$(PY) run pytest --cov --cov-report=term-missing $(PYTEST_COV_REPORT_ARGS) $(PYTEST_ARGS)
+
+# ============================================================================
+# Misc
+# ============================================================================
 
 .PHONY: audit
 audit:  ## Audit dependencies for known vulnerabilities
-	$(PY) run pip-audit --ignore-vuln PYSEC-2022-42969 # ignore python-semantic-release vulnerability, only affects development
+	$(PY) run pip-audit $(PIP_AUDIT_ARGS)
 
-.PHONY: docstring-cov
-docstring-cov:  ## Check docstring coverage with interrogate
-	$(PY) run interrogate src/
+.PHONY: secrets-check
+secrets-check: ## Scan the repository for secrets
+	$(PY) run pre-commit run gitleaks --all-files
+
+# ============================================================================
+# Full check
+# ============================================================================
 
 .PHONY: check
-check: format-check lint type docstring-cov test audit  ## Run all checks
+check: repo-check format-check lint-check type-check docstring-check test-cov audit secrets-check  ## Run the full local validation suite
 
 # ============================================================================
 # Version
@@ -84,14 +114,15 @@ version:  ## Show current version
 # ============================================================================
 
 .PHONY: clean clean-all
-clean:  ## Remove Python cache files
+clean:  ## Remove local build, test, and cache artifacts
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
 	find . -type f -name "*.pyo" -delete
 	find . -type d -name "*.egg-info" -exec rm -rf {} +
-	find . -type d -name ".pytest_cache" -exec rm -rf {} +
-	find . -type d -name ".ruff_cache" -exec rm -rf {} +
 	find . -type f -name "*.log" -delete
+	rm -rf .cache .hypothesis .nox .pytest_cache .ruff_cache .tox
+	rm -rf .uv-cache .eggs build dist htmlcov sdist
+	rm -f .coverage coverage.xml report.xml release.env
 
 clean-all: clean  ## Remove cache files and virtual environment
 	rm -rf .venv/

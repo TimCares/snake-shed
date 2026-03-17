@@ -1,0 +1,29 @@
+format:
+  extends: .uv-base
+  stage: quality
+  script:
+    - make format-check
+
+lint:
+  extends: .uv-base
+  stage: quality
+  script:
+    - make lint-check
+
+type-check:
+  extends: .uv-base
+  stage: quality
+  script:
+    - make type-check
+
+docstring-coverage:
+  extends: .uv-base
+  stage: quality
+  script:
+    - make docstring-check
+
+repo-check:
+  extends: .uv-base
+  stage: quality
+  script:
+    - make repo-check

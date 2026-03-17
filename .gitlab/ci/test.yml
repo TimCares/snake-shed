@@ -1,0 +1,13 @@
+test:
+  extends: .uv-base
+  stage: test
+  script:
+    - make test-cov PYTEST_COV_REPORT_ARGS="--cov-report=xml:coverage.xml" PYTEST_ARGS="--junitxml=report.xml"
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'

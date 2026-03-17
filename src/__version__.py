@@ -1,3 +1,5 @@
+"""Project version metadata."""
+
 from importlib.metadata import version
 
-__version__ = version("korres-ai-composer")
+__version__ = version("my-project")

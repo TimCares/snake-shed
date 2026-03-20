@@ -1,8 +1,15 @@
 <h1 align="center">🐍 snake shed</h1>
 <h3 align="center">An opinionated python development template</h3>
+
+<p align="center">
+  <a href="https://docs.astral.sh/ruff/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
+  <a href="https://docs.astral.sh/ty/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ty/main/assets/badge/v0.json" alt="ty"></a>
+  <a href="https://github.com/econchick/interrogate"><img src="https://interrogate.readthedocs.io/en/latest/_static/interrogate_badge.svg" alt="interrogate"></a>
+</p>
+
 Setting up a new Python project should not require rebuilding the same tooling every time.
 
-`snake-shed` is a compact project template with the batteries already included. Features include:
+`snake-shed` is a compact project template with all the components already included. Features include:
 
 - Easy python environment handling
 - Full config handling with YAML and env files

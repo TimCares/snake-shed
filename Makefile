@@ -55,8 +55,8 @@ lint: ## Run linter and auto-fix issues
 	$(PY) run ruff check --fix .
 
 .PHONY: type-check
-type-check:  ## Type check with pyright
-	$(PY) run pyright
+type-check:  ## Type check with ty
+	$(PY) run ty check
 
 .PHONY: docstring-check
 docstring-check: ## Check docstring coverage

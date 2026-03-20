@@ -49,7 +49,7 @@ def load_config(
         load_dotenv(_DEFAULT_ENV_FILE_PATH, override=True)
 
     cfg = OmegaConf.load(config_path)
-    raw: dict[str, Any] = OmegaConf.to_container(cfg, resolve=True)  # type: ignore[assignment]
+    raw: dict[str, Any] = OmegaConf.to_container(cfg, resolve=True)  # ty: ignore[invalid-assignment]
     return Config.model_validate(raw)
 
 

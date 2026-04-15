@@ -1,5 +1,10 @@
 PY=uv
-PIP_AUDIT_ARGS ?= --ignore-vuln PYSEC-2022-42969
+
+
+# Vulnerabilities acknowledged and accepted (no fix available or not applicable)
+# Add an ignore with e.g. "--ignore-vuln CVE-XXXX-XXXX "
+PIP_AUDIT_IGNORE ?=
+
 PYTEST_ARGS ?=
 PYTEST_COV_REPORT_ARGS ?= --cov-report=xml
 
@@ -83,23 +88,27 @@ test-cov:  ## Run tests with coverage report
 	$(PY) run pytest --cov --cov-report=term-missing $(PYTEST_COV_REPORT_ARGS) $(PYTEST_ARGS)
 
 # ============================================================================
-# Misc
+# Security
 # ============================================================================
 
 .PHONY: audit
-audit:  ## Audit dependencies for known vulnerabilities
-	$(PY) run pip-audit $(PIP_AUDIT_ARGS)
+audit:  ## Audit dependencies for known vulnerabilities (ignores defined in PIP_AUDIT_IGNORE)
+	$(PY) run pip-audit $(PIP_AUDIT_IGNORE)
 
-.PHONY: secrets-check
-secrets-check: ## Scan the repository for secrets
+.PHONY: find-secrets
+find-secrets:  ## Scan for secrets with gitleaks (uses .gitleaks.toml)
 	$(PY) run pre-commit run gitleaks --all-files
 
+.PHONY: trivy
+trivy:  ## Scan for vulnerabilities with trivy (uses trivy.yaml)
+	docker run --rm -v "$(PWD):/repo" -w /repo ghcr.io/aquasecurity/trivy:latest fs .
+
 # ============================================================================
-# Full check
+# Full check (omits trivy because of large DB used by trivy)
 # ============================================================================
 
 .PHONY: check
-check: repo-check format-check lint-check type-check docstring-check test-cov audit secrets-check  ## Run the full local validation suite
+check: repo-check format-check lint-check type-check docstring-check test-cov audit find-secrets  ## Run the full local validation suite
 
 # ============================================================================
 # Version

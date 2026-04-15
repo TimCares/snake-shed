@@ -4,17 +4,20 @@ semantic-release:
   variables:
     GIT_DEPTH: 0
   script:
+    # Re-attach HEAD so PSR can match branch rules against a real branch name
+    - git checkout $CI_COMMIT_BRANCH
+    # Determine version: --print-tag always returns a value (next or current)
+    # If it differs from --print-last-released-tag, a new release is pending
+    - VERSION=$(uv run semantic-release version --print-tag 2>/dev/null | tail -1) || true
+    - CURRENT=$(uv run semantic-release version --print-last-released-tag 2>/dev/null | tail -1) || true
+    - echo "VERSION=$VERSION" >> release.env
     - |
-      NEXT=$(uv run semantic-release version --print-tag 2>/dev/null | tail -1)
-      CURRENT=$(uv run semantic-release version --print-last-released-tag 2>/dev/null | tail -1)
-      VERSION=${NEXT:-$CURRENT}
-      echo "VERSION=$VERSION" >> release.env
-      echo "Version: $VERSION"
-    - |
-      if [ -n "$NEXT" ]; then
+      if [ "$VERSION" != "$CURRENT" ]; then
+        echo "RELEASED=true" >> release.env
         git remote set-url origin "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
-        uv run semantic-release version
+        uv run semantic-release -v version
       else
+        echo "RELEASED=false" >> release.env
         echo "No release needed"
       fi
   artifacts:

@@ -5,19 +5,17 @@ pip-audit:
     - make audit
 
 gitleaks:
-  extends: .uv-base
   stage: security
+  image:
+    name: zricethezav/gitleaks:latest
+    entrypoint: [""]
   script:
-    - make secrets-check
+    - gitleaks detect --source . --verbose --redact
 
 trivy:
   stage: security
   image:
-    name: aquasec/trivy:latest
+    name: ghcr.io/aquasecurity/trivy:0.69.3
     entrypoint: [""]
   script:
-    - trivy fs --exit-code 1 --severity HIGH,CRITICAL .
-  allow_failure: true
-
-secret_detection:
-  stage: security
+    - trivy fs .

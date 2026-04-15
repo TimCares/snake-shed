@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.10.9,<0.11.0"]
+requires = ["uv_build"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
@@ -170,11 +170,21 @@ exclude_lines = [
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
-build_command = "uv build"
+build_command = """
+    set -e
+    uv lock --upgrade-package "$PACKAGE_NAME"
+    git add uv.lock
+    uv build
+"""  # includes commands to avoid a stale uv.lock
+build_command_env = []  # if the build commands needs variables from the env
 commit_parser = "conventional"
-commit_message = "chore(release): v{version}"
+commit_message = "chore(release): {version}\n\nSee CHANGELOG.md for more details. [skip ci]"
 commit_author = "semantic-release <semantic-release@ci>"
 tag_format = "v{version}"
+
+[tool.semantic_release.remote]
+type = "gitlab"  # or e.g. "github"
+# domain = "your-domain-if-self-hosted"
 
 [tool.semantic_release.branches.main]
 match = "(main|master)"

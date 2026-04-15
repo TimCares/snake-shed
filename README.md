@@ -29,6 +29,7 @@ This project is a compact template with all the components already included. Fea
 - CI (`gitlab`, easily swappable)
 - Enterprise-ready git workflow (conventional commits, semantic-release, pre-commit hooks)
 - Built-in `Makefile` commands to simplify all of the above
+- LLM-maintained [`wiki`](wiki/README.md) for easy (project) documentation
 
 ## Prerequisites
 
@@ -57,7 +58,7 @@ make format           Format code
 
 ## Project Structure
 
-```
+```text
 src/
   __version__.py        Version (reads from pyproject.toml metadata)
   config.py             Pydantic configuration schemas
@@ -66,6 +67,15 @@ config/
   config.yaml           App config (env vars via OmegaConf interpolation)
   .env.dist             Environment variable template
 tests/
+wiki/
+  index.md              Catalog of all wiki pages
+  log.md                Timeline of wiki activity
+  inbox/                Quick capture zone
+  decisions/            Architecture Decision Records
+  guides/               How-tos and runbooks
+  reference/            Architecture docs, specs, conventions
+  journal/              Thoughts, observations, findings
+  _templates/           Document templates
 ```
 
 ## Configuration
@@ -74,11 +84,15 @@ Configuration is defined in `config/config.yaml` using OmegaConf's `${oc.env:VAR
 
 Environment variables are loaded from `config/.env` by default. Missing default `.env` files are ignored, while an explicitly provided `env_file` must exist.
 
+## Wiki
+
+The `wiki/` directory is an LLM-maintained project wiki for capturing decisions, guides, and reference material. The LLM handles all the bookkeeping — metadata, cross-references, index updates — so writing docs doesn't feel like a chore. Tell the LLM to "capture this", "document why we chose X", or "lint the wiki". See [`wiki/README.md`](wiki/README.md) for details.
+
 ## Commit Convention
 
 This project uses [Conventional Commits](https://www.conventionalcommits.org/). Commitizen enforces the format via a pre-commit hook. Examples:
 
-```
+```text
 feat (autograd): added support for gradient accumulation
 fix (config): added missing environment variable handling
 docs (readme): update config section in README

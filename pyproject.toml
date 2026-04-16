@@ -110,6 +110,9 @@ docstring-code-format = true
 # ty — Static Type Checking
 # =============================================================================
 
+[tool.ty.environment]
+python = ".venv"
+
 [tool.ty.src]
 include = ["src"]
 

@@ -4,4 +4,3 @@ include:
   - local: .gitlab/ci/test.yml
   - local: .gitlab/ci/security.yml
   - local: .gitlab/ci/release.yml
-  - template: Security/Secret-Detection.gitlab-ci.yml

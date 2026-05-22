@@ -30,6 +30,14 @@ This project is a compact template with all the components already included. Fea
 - Enterprise-ready git workflow (conventional commits, semantic-release, pre-commit hooks)
 - Built-in `Makefile` commands to simplify all of the above
 - LLM-maintained [`wiki`](wiki/README.md) for easy (project) documentation
+- A [`docs`](docs/) directory for usual documentation
+
+**Disclaimer**: This template aims to serve a wide range of use cases, so you
+should adjust it according to your requirements and taste. There is a lot to
+take in — [`docs/REPO_SETUP.md`](docs/REPO_SETUP.md) walks through every
+moving part, why it's there, and how to swap or remove it. (Feel free to
+delete that file once you're done with it; `make bootstrap` will offer to
+do it for you.)
 
 ## Prerequisites
 
@@ -37,12 +45,28 @@ Just [uv](https://docs.astral.sh/uv/getting-started/installation/)!
 
 ## Getting Started
 
+Clone the template into a directory named after your project, then run a single command:
+
 ```bash
+git clone <template-url> my-new-project
+cd my-new-project
 make bootstrap
-make pre-commit-install
 ```
 
-Make sure to configure the runtime env variables by copying [`config/.env.dist`](config/.env.dist) to `config/.env` and filling in the values.
+On the **first run**, `make bootstrap` is interactive: it asks for a project
+name (defaulting to the directory name), package name, description, and
+author, then renames the placeholder layout (`src/my_project/` →
+`src/<your_package>/`) and updates `pyproject.toml`, the README, and tests
+accordingly. After that it installs the pinned Python, dependencies, and
+pre-commit hooks. The rename script self-deletes when it's done, so
+re-running `make bootstrap` later just re-installs the dev environment —
+which is what you want.
+
+For non-interactive use (CI, dotfiles, etc.) the rename step accepts a
+`--yes` flag; see [`docs/REPO_SETUP.md`](docs/REPO_SETUP.md#bootstrap).
+
+Finally, configure runtime env variables by copying
+[`config/.env.dist`](config/.env.dist) to `config/.env` and filling in the values.
 
 ## Development
 
@@ -60,28 +84,39 @@ make format           Format code
 
 ```text
 src/
-  __version__.py        Version (reads from pyproject.toml metadata)
-  config/
-    config.py           Pydantic configuration schemas
-    config_loader.py    OmegaConf YAML loading + Pydantic validation
+  my_project/             Your package (renamed by `make bootstrap` on first run)
+    __version__.py        Version (reads from pyproject.toml metadata)
+    config/
+      config.py           Pydantic configuration schemas
+      config_loader.py    OmegaConf YAML loading + Pydantic validation
 config/
-  config.yaml           App config (env vars via OmegaConf interpolation)
-  .env.dist             Environment variable template
+  config.yaml             App config (env vars via OmegaConf interpolation)
+  .env.dist               Environment variable template
+docs/
+  REPO_SETUP.md           Template internals & customization guide (safe to delete)
+scripts/
+  bootstrap_template.py   One-time template rename (deletes itself after first run)
 tests/
 wiki/
-  index.md              Catalog of all wiki pages
-  log.md                Timeline of wiki activity
-  inbox/                Quick capture zone
-  decisions/            Architecture Decision Records
-  guides/               How-tos and runbooks
-  reference/            Architecture docs, specs, conventions
-  journal/              Thoughts, observations, findings
-  _templates/           Document templates
+  index.md                Catalog of all wiki pages
+  log.md                  Timeline of wiki activity
+  inbox/                  Quick capture zone
+  decisions/              Architecture Decision Records
+  guides/                 How-tos and runbooks
+  reference/              Architecture docs, specs, conventions
+  journal/                Thoughts, observations, findings
+  _templates/             Document templates
 ```
+
+The `src/my_project/` layout is the standard PyPA-recommended *src layout*.
+As the project grows, add subpackages directly under it (e.g.
+`src/my_project/core/`, `src/my_project/api/`) rather than dumping modules at
+the top level. No `pyproject.toml` change needed — see
+[`docs/REPO_SETUP.md`](docs/REPO_SETUP.md#layout) for the full rationale.
 
 ## Configuration
 
-Configuration is defined in [`config/config.yaml`](config/config.yaml) using OmegaConf's `${oc.env:VAR}` syntax to resolve environment variables. Values are validated at startup through Pydantic models in [`src/config/config.py`](src/config/config.py).
+Configuration is defined in [`config/config.yaml`](config/config.yaml) using OmegaConf's `${oc.env:VAR}` syntax to resolve environment variables. Values are validated at startup through Pydantic models in [`src/my_project/config/config.py`](src/my_project/config/config.py).
 
 Environment variables are loaded from `config/.env` by default.
 Missing default `.env` files are ignored, while an explicitly provided path to an env file (`env_file`) must point to a valid file.

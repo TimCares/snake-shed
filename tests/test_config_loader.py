@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from src.config import config_loader
-from src.config import get_config, load_config
+from my_project.config import config_loader
+from my_project.config import get_config, load_config
 
 
 def _write_config(path: Path) -> None:

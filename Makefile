@@ -17,15 +17,30 @@ PYTEST_COV_REPORT_ARGS ?= --cov-report=xml
 help:  ## Show this help message
 	@echo "Makefile Commands"
 	@echo "=============================="
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+		| sort \
+		| awk 'BEGIN {FS = ":.*?## "}; $$1 != "teardown" {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^teardown:.*?## .*$$' $(MAKEFILE_LIST) \
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "\033[31m%-20s\033[0m %s\n", $$1, $$2}'
 
 # ============================================================================
 # Setup and Installation
 # ============================================================================
 
+# `bootstrap` is the single command a fresh clone needs to be productive.
+# On the very first run it also executes `scripts/bootstrap_template.py`,
+# which renames the placeholder package to one derived from the directory
+# name (or whatever the user types at the prompt). That script self-deletes
+# afterwards — re-running `make bootstrap` later just (re)installs deps and
+# pre-commit hooks, which is what you usually want.
 .PHONY: bootstrap
-bootstrap: install-dev pre-commit-install ## Full project setup (deps + pre-commit hooks)
+bootstrap:  ## One-time project init (template rename, on first run) + dev environment setup
+	@if [ -f scripts/bootstrap_template.py ]; then \
+		$(PY) run --no-project --script scripts/bootstrap_template.py; \
+	fi
 	$(PY) python install $$(cat .python-version)
+	$(MAKE) install-dev
+	$(MAKE) pre-commit-install
 
 .PHONY: install
 install:  ## Install only production dependencies
@@ -122,7 +137,7 @@ version:  ## Show current version
 # Cleanup
 # ============================================================================
 
-.PHONY: clean clean-all
+.PHONY: clean clean-all teardown
 clean:  ## Remove local build, test, and cache artifacts
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
@@ -135,3 +150,11 @@ clean:  ## Remove local build, test, and cache artifacts
 
 clean-all: clean  ## Remove cache files and virtual environment
 	rm -rf .venv/
+
+# `teardown` is the inverse of `bootstrap`'s *environment* setup only — it
+# removes the venv, pre-commit hook, and pinned Python toolchain.
+teardown:  ## Remove dev environment (venv, pre-commit hook, pinned Python).
+	$(PY) run pre-commit uninstall
+# clean-all needs to run after "pre-commit uninstall" because uv creates .venv when "pre-commit uninstall" runs
+	$(MAKE) clean-all
+	$(PY) python uninstall $$(cat .python-version)

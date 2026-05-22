@@ -1,12 +1,3 @@
-[build-system]
-requires = ["uv_build"]
-build-backend = "uv_build"
-
-[tool.uv.build-backend]
-module-name = "src"
-module-root = ""
-
-
 [project]
 name = "my-project"
 version = "0.1.0"
@@ -33,6 +24,35 @@ dev = [
     "ruff>=0.15.14",
     "ty>=0.0.38",
 ]
+
+[tool.uv]
+constraint-dependencies = []
+override-dependencies = []
+
+# =============================================================================
+# Building
+# =============================================================================
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+# Layout: this project uses the standard "src layout" (PyPA-recommended).
+# Source code lives under `src/<package>/` so the package can only be imported
+# after install — this catches missing-file bugs in the wheel that a flat layout
+# silently hides. `module-name` is the importable package name (what users write
+# after `import ...`); it should match `[project].name` with hyphens replaced
+# by underscores. `make bootstrap` rewrites both on first run.
+#
+# Adding subpackages as the project grows is purely additive — no config change
+# needed. A common pattern is:
+#   src/<package>/core/     domain logic
+#   src/<package>/api/      HTTP/CLI entry points
+#   src/<package>/config/   configuration
+#   src/<package>/infra/    I/O, DB, external services
+[tool.uv.build-backend]
+module-name = "my_project"
+module-root = "src"
 
 # =============================================================================
 # Ruff — Linting & Formatting

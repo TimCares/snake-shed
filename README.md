@@ -42,7 +42,7 @@ make bootstrap
 make pre-commit-install
 ```
 
-Make sure to configure the runtime env variables by copying `config/.env.dist` to `config/.env` and filling in the values.
+Make sure to configure the runtime env variables by copying [`config/.env.dist`](config/.env.dist) to `config/.env` and filling in the values.
 
 ## Development
 
@@ -61,8 +61,9 @@ make format           Format code
 ```text
 src/
   __version__.py        Version (reads from pyproject.toml metadata)
-  config.py             Pydantic configuration schemas
-  config_loader.py      OmegaConf YAML loading + Pydantic validation
+  config/
+    config.py           Pydantic configuration schemas
+    config_loader.py    OmegaConf YAML loading + Pydantic validation
 config/
   config.yaml           App config (env vars via OmegaConf interpolation)
   .env.dist             Environment variable template
@@ -80,13 +81,14 @@ wiki/
 
 ## Configuration
 
-Configuration is defined in `config/config.yaml` using OmegaConf's `${oc.env:VAR}` syntax to resolve environment variables. Values are validated at startup through Pydantic models in `src/config.py`.
+Configuration is defined in [`config/config.yaml`](config/config.yaml) using OmegaConf's `${oc.env:VAR}` syntax to resolve environment variables. Values are validated at startup through Pydantic models in [`src/config/config.py`](src/config/config.py).
 
-Environment variables are loaded from `config/.env` by default. Missing default `.env` files are ignored, while an explicitly provided `env_file` must exist.
+Environment variables are loaded from `config/.env` by default.
+Missing default `.env` files are ignored, while an explicitly provided path to an env file (`env_file`) must point to a valid file.
 
 ## Wiki
 
-The `wiki/` directory is an LLM-maintained project wiki for capturing decisions, guides, and reference material. The LLM handles all the bookkeeping — metadata, cross-references, index updates — so writing docs doesn't feel like a chore. Tell the LLM to "capture this", "document why we chose X", or "lint the wiki". See [`wiki/README.md`](wiki/README.md) for details.
+The [`wiki/`](wiki/) directory is an LLM-maintained project wiki (inspired by Andrej Karpathy) for capturing decisions, guides, and reference material. The LLM handles all the bookkeeping — metadata, cross-references, index updates — so writing docs doesn't feel like a chore. Tell the LLM to "capture this", "document why we chose X", or "lint the wiki". See [`wiki/README.md`](wiki/README.md) for details.
 
 ## Commit Convention
 

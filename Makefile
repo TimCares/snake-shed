@@ -3,7 +3,7 @@ PY=uv
 
 # Vulnerabilities acknowledged and accepted (no fix available or not applicable)
 # Add an ignore with e.g. "--ignore-vuln CVE-XXXX-XXXX "
-PIP_AUDIT_IGNORE ?=
+PIP_AUDIT_IGNORE ?= --ignore-vuln PYSEC-2022-42969
 
 PYTEST_ARGS ?=
 PYTEST_COV_REPORT_ARGS ?= --cov-report=xml

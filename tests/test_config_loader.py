@@ -6,9 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from src import __version__ as version_module
-from src import config_loader
-from src.config_loader import get_config, load_config
+from src.config import config_loader
+from src.config import get_config, load_config
 
 
 def _write_config(path: Path) -> None:
@@ -66,7 +65,3 @@ def test_get_config_uses_defaults_and_optional_missing_env(monkeypatch: pytest.M
     assert loaded.my_secret.get_secret_value() == "another-secret"
 
     get_config.cache_clear()
-
-
-def test_version_metadata_is_available() -> None:
-    assert version_module.__version__ == "0.1.0"

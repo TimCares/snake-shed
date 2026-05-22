@@ -17,21 +17,21 @@ authors = [{ name = "Your Name" }]
 
 dependencies = [
     "omegaconf>=2.3.0",
-    "pydantic>=2.12.5",
-    "python-dotenv>=1.1.0",
+    "pydantic>=2.13.4",
+    "python-dotenv>=1.2.2",
 ]
 
 [dependency-groups]
 dev = [
-    "commitizen>=4.13.9",
+    "commitizen>=4.16.2",
     "interrogate>=1.7.0",
     "pip-audit>=2.10.0",
-    "pre-commit>=4.5.1",
-    "pytest>=9.0.2",
-    "pytest-cov>=7.0.0",
+    "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
     "python-semantic-release>=10.5.3",
-    "ruff>=0.15.2",
-    "ty>=0.0.24",
+    "ruff>=0.15.14",
+    "ty>=0.0.38",
 ]
 
 # =============================================================================

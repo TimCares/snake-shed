@@ -3,6 +3,7 @@ stages:
   - test
   - security
   - release
+  - docker
 
 .uv-base:
   image: ghcr.io/astral-sh/uv:python3.13-trixie

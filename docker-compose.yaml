@@ -1,0 +1,29 @@
+name: my_project
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: my_project:latest
+    env_file:
+      - ./config/.env
+    volumes:
+      - ./config/config.yaml:/app/config/config.yaml:ro
+    # Root filesystem is immutable at runtime. Anything the app needs to write
+    # must go through a tmpfs or named volume declared below.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    # Resource limits should be adjusted to the actual workload. Without these a runaway process
+    # can overload the host.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M

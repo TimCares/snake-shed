@@ -39,7 +39,22 @@ SRC = ROOT / "src"
 README = ROOT / "README.md"
 TESTS = ROOT / "tests"
 UV_LOCK = ROOT / "uv.lock"
+LICENSE_FILE = ROOT / "LICENSE"
 REPO_SETUP = ROOT / "docs" / "REPO_SETUP.md"
+CI_BASE = ROOT / ".gitlab" / "ci" / "base.yml"
+
+DOCKER_FILES: tuple[str, ...] = (
+    "Dockerfile",
+    ".dockerignore",
+    "docker-compose.yaml",
+    ".gitlab/ci/docker.yml",
+)
+
+# Docker files split by which placeholder substitution they need.
+# Image-name references (Docker convention: hyphens) get the project name;
+# Python module paths get the package name (underscores).
+DOCKER_REWRITE_PACKAGE: tuple[str, ...] = ("Dockerfile",)
+DOCKER_REWRITE_PROJECT: tuple[str, ...] = ("docker-compose.yaml", ".gitlab/ci/docker.yml")
 
 PLACEHOLDER_PROJECT = "my-project"
 PLACEHOLDER_PACKAGE = "my_project"
@@ -266,11 +281,79 @@ def update_test_imports(package: str) -> None:
             print(f"  - rewrote imports in {path.relative_to(ROOT)}")
 
 
+def update_docker_files(inputs: TemplateInputs) -> None:
+    """Rewrite ``my_project`` placeholders in the shipped Docker files.
+
+    Substitution differs by file:
+
+    - ``Dockerfile`` references the Python module path
+      (``CMD ["python", "-m", "my_project"]``) → use ``inputs.package``
+      (snake_case).
+    - ``docker-compose.yaml`` and ``.gitlab/ci/docker.yml`` reference image
+      names (``image:`` / ``IMAGE_NAME:``) → use ``inputs.project``
+      (kebab-case, Docker's convention).
+    """
+    if inputs.package == PLACEHOLDER_PACKAGE:
+        return
+    pattern = re.compile(rf"\b{re.escape(PLACEHOLDER_PACKAGE)}\b")
+
+    def _rewrite(rel_path: str, replacement: str) -> None:
+        path = ROOT / rel_path
+        if not path.exists():
+            return
+        text = path.read_text()
+        new_text = pattern.sub(replacement, text)
+        if new_text != text:
+            path.write_text(new_text)
+            print(f"  - updated {rel_path}")
+
+    for rel_path in DOCKER_REWRITE_PACKAGE:
+        _rewrite(rel_path, inputs.package)
+    for rel_path in DOCKER_REWRITE_PROJECT:
+        _rewrite(rel_path, inputs.project)
+
+
+def remove_docker_files() -> None:
+    """Delete Docker support files and strip the docker stage from CI base.
+
+    Called when the user opts out of Docker support during bootstrap.
+    """
+    for rel_path in DOCKER_FILES:
+        path = ROOT / rel_path
+        if path.exists():
+            path.unlink()
+            print(f"  - removed {rel_path}")
+
+    if CI_BASE.exists():
+        text = CI_BASE.read_text()
+        new_text = re.sub(r"^\s*-\s*docker\s*\n", "", text, count=1, flags=re.MULTILINE)
+        if new_text != text:
+            CI_BASE.write_text(new_text)
+            print(f"  - removed `- docker` stage from {CI_BASE.relative_to(ROOT)}")
+
+
 def delete_uv_lock() -> None:
     """Drop the lock file so ``uv sync`` regenerates it under the new name."""
     if UV_LOCK.exists():
         UV_LOCK.unlink()
         print("  - deleted uv.lock (will be regenerated on next `uv sync`)")
+
+
+def delete_license() -> None:
+    """Delete the template's ``LICENSE`` file.
+
+    Defensive: shipping a default license (and not deleting the template one)
+    would silently make every downstream project inherit the template's terms.
+    Forcing the maintainer to add their own keeps the licensing choice
+    deliberate. No replacement is generated — pick one explicitly via e.g.
+    https://choosealicense.com.
+    """
+    if LICENSE_FILE.exists():
+        LICENSE_FILE.unlink()
+        print(
+            f"  - deleted {LICENSE_FILE.relative_to(ROOT)} "
+            "(add your own LICENSE before publishing)"
+        )
 
 
 def maybe_delete_repo_setup(*, non_interactive: bool) -> None:
@@ -287,24 +370,21 @@ def maybe_delete_repo_setup(*, non_interactive: bool) -> None:
 
 
 def self_delete() -> None:
-    """Delete this script (and the surrounding `scripts/` dir if it ends up empty).
+    """Delete this script.
 
     Called near the end of bootstrap so the running process keeps working
     (the file is removed from disk, but the interpreter has already loaded it).
     Doing this from inside the script — rather than from the Makefile — means
     a subsequent ``reset_git_history`` call captures a clean working tree.
+
+    The surrounding ``scripts/`` directory is intentionally kept: it hosts
+    other permanent project scripts (e.g. ``release.sh``) and project-specific
+    ones might be added later there.
     """
     here = Path(__file__).resolve()
-    parent = here.parent
-    rel = here.relative_to(ROOT)
     if here.exists():
         here.unlink()
-        print(f"  - removed {rel}")
-    try:
-        parent.rmdir()
-    except OSError:
-        return
-    print(f"  - removed empty {parent.relative_to(ROOT)}/ dir")
+        print(f"  - removed {here.relative_to(ROOT)}")
 
 
 # ---------------------------------------------------------------------------
@@ -323,6 +403,22 @@ def decide_git_reset(*, override: bool | None, non_interactive: bool) -> bool:
         return False
     return confirm(
         "Reset git history? (starts a fresh repo with one initial commit)",
+        default=True,
+        non_interactive=False,
+    )
+
+
+def decide_keep_docker(*, override: bool | None, non_interactive: bool) -> bool:
+    """Decide whether to keep the Docker support files.
+
+    Precedence: explicit CLI flag > non-interactive default (keep) > prompt.
+    """
+    if override is not None:
+        return override
+    if non_interactive:
+        return True
+    return confirm(
+        "Keep Docker support? (Dockerfile, .dockerignore, CI job, docs)",
         default=True,
         non_interactive=False,
     )
@@ -381,7 +477,7 @@ def reset_git_history(*, author_name: str, author_email: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def print_plan(inputs: TemplateInputs, *, reset_git: bool) -> None:
+def print_plan(inputs: TemplateInputs, *, reset_git: bool, keep_docker: bool) -> None:
     """Show the user exactly what will change before we touch anything."""
     print()
     print("The following changes will be made:")
@@ -397,8 +493,14 @@ def print_plan(inputs: TemplateInputs, *, reset_git: bool) -> None:
     print(f"  - set [tool.uv.build-backend].module-name = {inputs.package!r}")
     print(f"  - replace placeholders in README.md ({PLACEHOLDER_DISPLAY!r}, project structure)")
     print(f"  - rewrite `{PLACEHOLDER_PACKAGE}` imports under tests/")
+    if keep_docker:
+        print(f"  - rewrite `{PLACEHOLDER_PACKAGE}` in Docker files (Dockerfile, compose, CI)")
+    else:
+        print("  - remove Docker support files (Dockerfile, .dockerignore, compose, CI)")
     print("  - delete uv.lock (regenerated on next `uv sync`)")
-    print("  - remove this script (and the scripts/ dir if empty)")
+    if LICENSE_FILE.exists():
+        print("  - delete LICENSE (no default is provided — add one before publishing)")
+    print("  - remove this script")
     if reset_git:
         print("  - WIPE .git/ and create a fresh repo with a single initial commit")
     print()
@@ -425,6 +527,18 @@ def main() -> int:
             "skipped under --yes."
         ),
     )
+    parser.add_argument(
+        "--docker",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Keep (--docker) or remove (--no-docker) the Docker support files "
+            "(Dockerfile, .dockerignore, docker-compose.yaml, "
+            ".gitlab/ci/docker.yml, and the `docker` CI stage). If unspecified, "
+            "you are prompted interactively (default Yes) or the files are "
+            "kept under --yes."
+        ),
+    )
     args = parser.parse_args()
     non_interactive = bool(args.yes)
 
@@ -439,7 +553,8 @@ def main() -> int:
 
     inputs = collect_inputs(non_interactive=non_interactive)
     reset_git = decide_git_reset(override=args.reset_git, non_interactive=non_interactive)
-    print_plan(inputs, reset_git=reset_git)
+    keep_docker = decide_keep_docker(override=args.docker, non_interactive=non_interactive)
+    print_plan(inputs, reset_git=reset_git, keep_docker=keep_docker)
 
     if not confirm("Proceed with these changes?", default=True, non_interactive=non_interactive):
         print("Aborted. No files were modified.")
@@ -451,9 +566,15 @@ def main() -> int:
     update_version_file(inputs)
     update_readme(inputs)
     update_test_imports(inputs.package)
+    if keep_docker:
+        update_docker_files(inputs)
     delete_uv_lock()
+    delete_license()
     print()
     maybe_delete_repo_setup(non_interactive=non_interactive)
+    if not keep_docker:
+        print()
+        remove_docker_files()
     print()
     self_delete()
     if reset_git:

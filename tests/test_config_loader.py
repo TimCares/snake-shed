@@ -65,3 +65,55 @@ def test_get_config_uses_defaults_and_optional_missing_env(monkeypatch: pytest.M
     assert loaded.my_secret.get_secret_value() == "another-secret"
 
     get_config.cache_clear()
+
+
+@pytest.mark.parametrize("truthy_value", ["1", "true", "TRUE", "Yes", " yes "])
+def test_load_config_skips_default_dotenv_when_disable_var_truthy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, truthy_value: str
+) -> None:
+    """`__DISABLE_LOAD_DOTENV__` truthy → the implicit `.env` fallback is skipped.
+
+    Simulates the shipped Dockerfile's ENV: env vars are expected to come
+    from the runtime (Compose `env_file:`, `docker run --env-file`, k8s
+    Secrets, …), so a `.env` baked into the image must NOT silently override
+    them. An explicit `env_file=` still takes precedence — covered elsewhere.
+    """
+    config_path = tmp_path / "config.yaml"
+    default_env = tmp_path / ".env"
+
+    _write_config(config_path)
+    default_env.write_text("MY_ENV=from-default-dotenv\nMY_SECRET=from-default-dotenv\n", encoding="utf-8")
+
+    monkeypatch.setattr(config_loader, "_DEFAULT_CONFIG_PATH", config_path)
+    monkeypatch.setattr(config_loader, "_DEFAULT_ENV_FILE_PATH", default_env)
+    monkeypatch.setenv("__DISABLE_LOAD_DOTENV__", truthy_value)
+    monkeypatch.setenv("MY_ENV", "from-runtime")
+    monkeypatch.setenv("MY_SECRET", "from-runtime")
+
+    loaded = load_config()
+
+    assert loaded.my_env == "from-runtime"
+    assert loaded.my_secret.get_secret_value() == "from-runtime"
+
+
+@pytest.mark.parametrize("non_truthy_value", ["0", "false", "no", "", "anything-else"])
+def test_load_config_loads_default_dotenv_when_disable_var_not_truthy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, non_truthy_value: str
+) -> None:
+    """Non-truthy / unset → fallback behavior is preserved (default `.env` loaded)."""
+    config_path = tmp_path / "config.yaml"
+    default_env = tmp_path / ".env"
+
+    _write_config(config_path)
+    default_env.write_text("MY_ENV=from-default-dotenv\nMY_SECRET=from-default-dotenv\n", encoding="utf-8")
+
+    monkeypatch.setattr(config_loader, "_DEFAULT_CONFIG_PATH", config_path)
+    monkeypatch.setattr(config_loader, "_DEFAULT_ENV_FILE_PATH", default_env)
+    monkeypatch.setenv("__DISABLE_LOAD_DOTENV__", non_truthy_value)
+    monkeypatch.delenv("MY_ENV", raising=False)
+    monkeypatch.delenv("MY_SECRET", raising=False)
+
+    loaded = load_config()
+
+    assert loaded.my_env == "from-default-dotenv"
+    assert loaded.my_secret.get_secret_value() == "from-default-dotenv"

@@ -62,7 +62,6 @@ module-root = "src"
 target-version = "py313"
 line-length = 100
 src = ["src"]
-fix = true
 exclude = ["tests/"]
 
 [tool.ruff.lint]
@@ -174,7 +173,7 @@ addopts = [
 [tool.coverage.run]
 source = ["src"]
 branch = true
-omit = ["tests/*", "*/__init__.py"]
+omit = ["tests/*", "*/__*__.py"]
 
 [tool.coverage.report]
 fail_under = 80

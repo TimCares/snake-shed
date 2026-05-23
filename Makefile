@@ -3,7 +3,7 @@ PY=uv
 
 # Vulnerabilities acknowledged and accepted (no fix available or not applicable)
 # Add an ignore with e.g. "--ignore-vuln CVE-XXXX-XXXX "
-PIP_AUDIT_IGNORE ?= --ignore-vuln PYSEC-2022-42969
+PIP_AUDIT_IGNORE ?= --ignore-vuln PYSEC-2022-42969 # as of May 2026 no fix exists in the affected package
 
 PYTEST_ARGS ?=
 PYTEST_COV_REPORT_ARGS ?= --cov-report=xml
@@ -13,15 +13,40 @@ PYTEST_COV_REPORT_ARGS ?= --cov-report=xml
 # =============================================================================
 # Help
 # =============================================================================
+#
+# Every target's help comment is tagged with a [category]:
+#   [setup]   one-time / environment setup
+#   [check]   read-only verification (used by CI and pre-commit)
+#   [fix]     auto-modifies files
+#   [release] cuts a version locally via python-semantic-release
+#   [meta]    introspection (help, version)
+#   [cleanup] removes local state
+#   [danger]  destructive; rendered last and in red
+#
+# `make help` groups output by category.
 
-help:  ## Show this help message
+.PHONY: help
+help:  ## [meta] Show this help message
 	@echo "Makefile Commands"
-	@echo "=============================="
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
-		| sort \
-		| awk 'BEGIN {FS = ":.*?## "}; $$1 != "teardown" {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
-	@grep -E '^teardown:.*?## .*$$' $(MAKEFILE_LIST) \
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "\033[31m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo "================="
+	@printf "\n\033[1mSetup\033[0m\n"
+	@grep -hE '^[a-zA-Z_-]+:.*?## \[setup\] ' $(MAKEFILE_LIST) | sort | \
+		awk 'BEGIN {FS = ":.*?## \\[setup\\] "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@printf "\n\033[1mCheck (read-only, safe in CI / pre-commit)\033[0m\n"
+	@grep -hE '^[a-zA-Z_-]+:.*?## \[check\] ' $(MAKEFILE_LIST) | sort | \
+		awk 'BEGIN {FS = ":.*?## \\[check\\] "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@printf "\n\033[1mFix (modifies files)\033[0m\n"
+	@grep -hE '^[a-zA-Z_-]+:.*?## \[fix\] ' $(MAKEFILE_LIST) | sort | \
+		awk 'BEGIN {FS = ":.*?## \\[fix\\] "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@printf "\n\033[1mRelease\033[0m\n"
+	@grep -hE '^[a-zA-Z_-]+:.*?## \[release\] ' $(MAKEFILE_LIST) | sort | \
+		awk 'BEGIN {FS = ":.*?## \\[release\\] "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@printf "\n\033[1mOther\033[0m\n"
+	@grep -hE '^[a-zA-Z_-]+:.*?## \[(meta|cleanup)\] ' $(MAKEFILE_LIST) | sort | \
+		awk 'BEGIN {FS = ":.*?## \\[[a-z]+\\] "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@printf "\n"
+	@grep -hE '^[a-zA-Z_-]+:.*?## \[danger\] ' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## \\[danger\\] "}; {printf "  \033[31m%-20s\033[0m %s\n", $$1, $$2}'
 
 # ============================================================================
 # Setup and Installation
@@ -34,7 +59,7 @@ help:  ## Show this help message
 # afterwards — re-running `make bootstrap` later just (re)installs deps and
 # pre-commit hooks, which is what you usually want.
 .PHONY: bootstrap
-bootstrap:  ## One-time project init (template rename, on first run) + dev environment setup
+bootstrap:  ## [setup] One-time project init (template rename, on first run) + dev environment setup
 	@if [ -f scripts/bootstrap_template.py ]; then \
 		$(PY) run --no-project --script scripts/bootstrap_template.py; \
 	fi
@@ -43,102 +68,124 @@ bootstrap:  ## One-time project init (template rename, on first run) + dev envir
 	$(MAKE) pre-commit-install
 
 .PHONY: install
-install:  ## Install only production dependencies
+install:  ## [setup] Install only production dependencies
 	$(PY) sync
 
 .PHONY: install-dev
-install-dev:  ## Install production + development dependencies
+install-dev:  ## [setup] Install production + development dependencies
 	$(PY) sync --dev
 
 .PHONY: pre-commit-install
-pre-commit-install:  ## Install pre-commit hooks
+pre-commit-install:  ## [setup] Install pre-commit hooks
 	$(PY) run pre-commit install
 
 # =============================================================================
-# Code Quality
+# Check targets (read-only — used by CI and pre-commit)
 # =============================================================================
 
 .PHONY: format-check
-format-check: ## Check code formatting without changes
+format-check:  ## [check] Check code formatting (no changes)
 	$(PY) run ruff format --check .
 
-.PHONY: format
-format: ## Format code (ruff)
-	$(PY) run ruff format .
-
 .PHONY: lint-check
-lint-check: ## Run linter check (ruff)
+lint-check:  ## [check] Run linter without auto-fixing
 	$(PY) run ruff check .
 
-.PHONY: lint
-lint: ## Run linter and auto-fix issues
-	$(PY) run ruff check --fix .
-
 .PHONY: type-check
-type-check:  ## Type check with ty
+type-check:  ## [check] Type check with ty
 	$(PY) run ty check
 
 .PHONY: docstring-check
-docstring-check: ## Check docstring coverage
+docstring-check:  ## [check] Check docstring coverage
 	$(PY) run interrogate -v
 
 .PHONY: repo-check
-repo-check: ## Run repository hygiene checks from pre-commit
+repo-check:  ## [check] Run repository hygiene checks from pre-commit
 	$(PY) run pre-commit run check-yaml --all-files
 	$(PY) run pre-commit run check-toml --all-files
 	$(PY) run pre-commit run check-added-large-files --all-files
 	$(PY) run pre-commit run check-merge-conflict --all-files
 	$(PY) run pre-commit run debug-statements --all-files
 
-# =============================================================================
-# Testing
-# =============================================================================
-
-.PHONY: test
-test:  ## Run tests with pytest
-	$(PY) run pytest $(PYTEST_ARGS)
-
-.PHONY: test-cov
-test-cov:  ## Run tests with coverage report
-	$(PY) run pytest --cov --cov-report=term-missing $(PYTEST_COV_REPORT_ARGS) $(PYTEST_ARGS)
-
-# ============================================================================
-# Security
-# ============================================================================
-
 .PHONY: audit
-audit:  ## Audit dependencies for known vulnerabilities (ignores defined in PIP_AUDIT_IGNORE)
+audit:  ## [check] Audit dependencies for known vulnerabilities
 	$(PY) run pip-audit $(PIP_AUDIT_IGNORE)
 
 .PHONY: find-secrets
-find-secrets:  ## Scan for secrets with gitleaks (uses .gitleaks.toml)
+find-secrets:  ## [check] Scan for secrets with gitleaks (uses .gitleaks.toml)
 	$(PY) run pre-commit run gitleaks --all-files
 
 .PHONY: trivy
-trivy:  ## Scan for vulnerabilities with trivy (uses trivy.yaml)
+trivy:  ## [check] Scan for vulnerabilities with trivy (uses trivy.yaml; slow, opt-in)
 	docker run --rm -v "$(PWD):/repo" -w /repo ghcr.io/aquasecurity/trivy:latest fs .
 
-# ============================================================================
-# Full check (omits trivy because of large DB used by trivy)
-# ============================================================================
+.PHONY: test
+test:  ## [check] Run tests with pytest
+	$(PY) run pytest $(PYTEST_ARGS)
 
+.PHONY: test-cov
+test-cov:  ## [check] Run tests with coverage report
+	$(PY) run pytest --cov --cov-report=term-missing $(PYTEST_COV_REPORT_ARGS) $(PYTEST_ARGS)
+
+# `check` is the aggregate the CI pipeline and pre-commit can rely on.
+# Excludes `trivy` because it downloads a large vulnerability DB on every run.
 .PHONY: check
-check: repo-check format-check lint-check type-check docstring-check test-cov audit find-secrets  ## Run the full local validation suite
+check: repo-check format-check lint-check type-check docstring-check test-cov audit find-secrets  ## [check] Run the full local check suite (no file changes)
 
-# ============================================================================
-# Version
-# ============================================================================
+# =============================================================================
+# Fix targets (modify files — run locally before committing)
+# =============================================================================
+
+.PHONY: format
+format:  ## [fix] Format code (ruff)
+	$(PY) run ruff format .
+
+.PHONY: lint
+lint:  ## [fix] Lint and auto-fix issues (ruff)
+	$(PY) run ruff check --fix .
+
+.PHONY: repo-fix
+repo-fix:  ## [fix] Auto-fix whitespace and end-of-file issues
+	$(PY) run pre-commit run trailing-whitespace --all-files || true
+	$(PY) run pre-commit run end-of-file-fixer --all-files || true
+
+# `fix` runs every auto-fixer the project knows about
+.PHONY: fix
+fix: format lint repo-fix  ## [fix] Run every auto-fixer (format + lint + repo-fix)
+
+# =============================================================================
+# Release (local; CI uses scripts/release.sh)
+# =============================================================================
+#
+# `make release` bumps the version, regenerates CHANGELOG.md, tags, 
+# but does NOT push. All based on conventional commits since the last
+# tag. Settings live under `[tool.semantic_release]` in pyproject.toml.
+#
+# `make release-dry` previews the bump without touching the working tree or
+# remote. Run it first.
+
+.PHONY: release-dry
+release-dry:  ## [release] Preview the next version bump (no commits, no tags, no push)
+	$(PY) run semantic-release --noop version
+
+.PHONY: release
+release:  ## [release] Cut a new version locally (no push)
+	$(PY) run semantic-release version --no-push
+
+# =============================================================================
+# Misc
+# =============================================================================
 
 .PHONY: version
-version:  ## Show current version
+version:  ## [meta] Show current version
 	@$(PY) run python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])"
 
-# ============================================================================
+# =============================================================================
 # Cleanup
-# ============================================================================
+# =============================================================================
 
-.PHONY: clean clean-all teardown
-clean:  ## Remove local build, test, and cache artifacts
+.PHONY: clean
+clean:  ## [cleanup] Remove local build, test, and cache artifacts
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
 	find . -type f -name "*.pyo" -delete
@@ -148,12 +195,14 @@ clean:  ## Remove local build, test, and cache artifacts
 	rm -rf .uv-cache .eggs build dist htmlcov sdist
 	rm -f .coverage coverage.xml report.xml release.env
 
-clean-all: clean  ## Remove cache files and virtual environment
+.PHONY: clean-all
+clean-all: clean  ## [cleanup] Remove cache files and virtual environment
 	rm -rf .venv/
 
 # `teardown` is the inverse of `bootstrap`'s *environment* setup only — it
 # removes the venv, pre-commit hook, and pinned Python toolchain.
-teardown:  ## Remove dev environment (venv, pre-commit hook, pinned Python).
+.PHONY: teardown
+teardown:  ## [danger] Remove dev environment (venv, pre-commit hook, pinned Python).
 	$(PY) run pre-commit uninstall
 # clean-all needs to run after "pre-commit uninstall" because uv creates .venv when "pre-commit uninstall" runs
 	$(MAKE) clean-all

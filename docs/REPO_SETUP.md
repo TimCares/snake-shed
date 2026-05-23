@@ -20,21 +20,28 @@ invoked automatically by `make bootstrap` on the very first run. It:
    `src/<your_package>/`.
 3. **Rewrites placeholders** in `pyproject.toml` (`[project].name`,
    `description`, `authors`, `[tool.uv.build-backend].module-name`),
-   `src/<your_package>/__version__.py`, the `README.md`, and any
-   `from my_project...` imports under `tests/`.
+   `src/<your_package>/__version__.py`, the `README.md`, any
+   `from my_project...` imports under `tests/`, and — when Docker support
+   is kept — the `Dockerfile`, `docker-compose.yaml`, and
+   `.gitlab/ci/docker.yml`.
 4. **Deletes `uv.lock`** so the next `uv sync` regenerates it under the new
    project name.
 5. **Offers to delete this file** (`docs/REPO_SETUP.md`), since it's
    template-specific and probably isn't useful to keep around in a real
    project.
-6. **Optionally resets git history** — wipes `.git/` and creates a fresh
+6. **Optionally removes Docker support** — `Dockerfile`, `.dockerignore`,
+   `docker-compose.yaml`, `.gitlab/ci/docker.yml`, and the `docker`
+   stage in `.gitlab/ci/base.yml`. Prompted interactively (default Keep);
+   kept under `--yes` unless `--no-docker` is passed explicitly.
+7. **Optionally resets git history** — wipes `.git/` and creates a fresh
    repo with a single initial commit, so your project doesn't carry the
    template's commit history. Prompted interactively (default Yes); skipped
    under `--yes` unless `--reset-git` is passed explicitly.
 
-The script then self-deletes (and removes the `scripts/` directory if it's
-empty). Re-running `make bootstrap` later just re-installs the dev
-environment — there's no template state left to migrate.
+The script then self-deletes. The surrounding `scripts/` directory stays
+(it hosts other permanent project scripts such as `release.sh`).
+Re-running `make bootstrap` later just re-installs the dev environment —
+there's no template state left to migrate.
 
 ### Non-interactive use
 
@@ -43,13 +50,14 @@ For CI, dotfiles, or anywhere you can't answer prompts:
 ```bash
 uv run --no-project --script scripts/bootstrap_template.py --yes
 uv run --no-project --script scripts/bootstrap_template.py --yes --reset-git
-uv run --no-project --script scripts/bootstrap_template.py --no-reset-git
+uv run --no-project --script scripts/bootstrap_template.py --yes --no-docker
+uv run --no-project --script scripts/bootstrap_template.py --no-reset-git --no-docker
 ```
 
-`--yes` accepts every inferred default; `--reset-git` / `--no-reset-git`
-override the git-reset decision regardless of mode. You can preview what
-would change by running `--yes` against a fresh clone in a throwaway
-directory.
+`--yes` accepts every inferred default (keep Docker, no git reset).
+`--reset-git` / `--no-reset-git` and `--docker` / `--no-docker` override
+those decisions regardless of mode. You can preview what would change by
+running `--yes` against a fresh clone in a throwaway directory.
 
 ### Reverting
 
@@ -105,30 +113,63 @@ add or rearrange subpackages.
 
 ---
 
+## Make targets: check vs. fix
+
+`make help` groups targets into **Setup**, **Check**, **Fix**, **Other**,
+and **Danger** sections so it's obvious what each command does.
+
+The split that matters day-to-day:
+
+- **Check** targets are read-only — they verify but never modify files.
+  `make check` aggregates them all. CI runs the individual check targets;
+  pre-commit runs them on every commit. Whatever passes `make check`
+  passes CI.
+- **Fix** targets modify files. `make fix` runs every auto-fixer in the
+  project (`format` + `lint` + `repo-fix`). Run it locally before
+  committing; it is never invoked by pre-commit or CI.
+
+`repo-fix` is the auto-fix counterpart of `repo-check` — it runs the
+`trailing-whitespace` and `end-of-file-fixer` pre-commit hooks across all
+files. These hooks are intentionally absent from `.pre-commit-config.yaml`
+(they have no check-only mode and would silently modify files at commit
+time); call `make repo-fix` when you want them.
+
 ## Tooling Overview
 
 A whirlwind tour of every tool wired into the template, why it's here, and
-the `make` target that drives it.
+the `make` target(s) that drive it.
 
-| Concern        | Tool                          | `make` target          | Config location                          |
-| -------------- | ----------------------------- | ---------------------- | ---------------------------------------- |
+| Concern        | Tool                          | `make` target(s)                  | Config location                          |
+| -------------- | ----------------------------- | --------------------------------- | ---------------------------------------- |
 | Env / deps     | [uv](https://docs.astral.sh/uv/) | `install`, `install-dev`, `bootstrap`, `teardown` | `pyproject.toml`, `uv.lock`, `.python-version` |
-| Lint           | [ruff](https://docs.astral.sh/ruff/) | `lint`, `lint-check`   | `[tool.ruff]` in `pyproject.toml`        |
-| Format         | ruff format                   | `format`, `format-check` | `[tool.ruff.format]`                     |
-| Type check     | [ty](https://docs.astral.sh/ty/) | `type-check`           | `[tool.ty]`                              |
-| Docstring cov. | [interrogate](https://github.com/econchick/interrogate) | `docstring-check` | `[tool.interrogate]`                     |
-| Tests          | [pytest](https://docs.pytest.org/) + `pytest-cov` | `test`, `test-cov` | `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
-| Dep audit      | [pip-audit](https://pypi.org/project/pip-audit/) | `audit`                | `PIP_AUDIT_IGNORE` in `Makefile`         |
-| Secret scan    | [gitleaks](https://github.com/gitleaks/gitleaks) | `find-secrets`         | `.gitleaks.toml`                         |
-| Image scan     | [trivy](https://github.com/aquasecurity/trivy) | `trivy`                | `trivy.yaml`                             |
-| Pre-commit     | [pre-commit](https://pre-commit.com/) | `pre-commit-install`   | `.pre-commit-config.yaml`                |
-| Commit style   | [commitizen](https://commitizen-tools.github.io/commitizen/) | (commit-msg hook) | `[tool.commitizen]`                      |
-| Releases       | [python-semantic-release](https://python-semantic-release.readthedocs.io/) | (CI) | `[tool.semantic_release]`                |
-| CI             | GitLab CI                     | (CI)                   | `.gitlab-ci.yml`, `.gitlab/ci/*.yml`     |
+| Lint           | [ruff](https://docs.astral.sh/ruff/) | `lint-check` / `lint`             | `[tool.ruff]` in `pyproject.toml`        |
+| Format         | ruff format                   | `format-check` / `format`         | `[tool.ruff.format]`                     |
+| Hygiene fixes  | pre-commit-hooks              | `repo-check` / `repo-fix`         | `.pre-commit-config.yaml`                |
+| Type check     | [ty](https://docs.astral.sh/ty/) | `type-check`                      | `[tool.ty]`                              |
+| Docstring cov. | [interrogate](https://github.com/econchick/interrogate) | `docstring-check`                 | `[tool.interrogate]`                     |
+| Tests          | [pytest](https://docs.pytest.org/) + `pytest-cov` | `test`, `test-cov`                | `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
+| Dep audit      | [pip-audit](https://pypi.org/project/pip-audit/) | `audit`                           | `PIP_AUDIT_IGNORE` in `Makefile`         |
+| Secret scan    | [gitleaks](https://github.com/gitleaks/gitleaks) | `find-secrets`                    | `.gitleaks.toml`                         |
+| Image scan     | [trivy](https://github.com/aquasecurity/trivy) | `trivy`                           | `trivy.yaml`                             |
+| Pre-commit     | [pre-commit](https://pre-commit.com/) | `pre-commit-install`              | `.pre-commit-config.yaml`                |
+| Commit style   | [commitizen](https://commitizen-tools.github.io/commitizen/) | (commit-msg hook)                 | `[tool.commitizen]`                      |
+| Releases       | [python-semantic-release](https://python-semantic-release.readthedocs.io/) | `scripts/release.sh` (CI)         | `[tool.semantic_release]`                |
+| CI             | GitLab CI                     | (CI)                              | `.gitlab-ci.yml`, `.gitlab/ci/*.yml`     |
+| Container      | Docker (multi-stage)          | (CI builds on release; locally: `docker buildx build` or `docker compose up --build`) | `Dockerfile`, `.dockerignore`, `docker-compose.yaml`, `.gitlab/ci/docker.yml` |
 
-`make check` runs the full local validation suite (everything except `trivy`,
-which is omitted from the default loop because it downloads a large
-vulnerability DB on every run).
+`make check` runs the full local check suite (everything except `trivy`,
+which is omitted by default because it downloads a large vulnerability DB).
+`make fix` runs every auto-fixer.
+
+### Pre-commit is check-only
+
+Pre-commit hooks here only **verify**, never modify files. That means a
+failed pre-commit run is always actionable: run `make fix` (or the relevant
+sub-target), re-stage, and commit again. The trade-off is that you must
+remember to run `make fix` yourself — no silent rewrites mid-commit.
+
+The same `make check` aggregate runs in CI, so a passing pre-commit
+guarantees a passing CI quality stage.
 
 ---
 

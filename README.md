@@ -70,21 +70,27 @@ Finally, configure runtime env variables by copying
 
 ## Development
 
-Run `make help` to see all available commands. Key ones:
+Run `make help` to see all available commands, grouped by category. The two
+you'll use most:
 
 ```text
-make check            Run the full local validation suite
-make test             Run tests
-make test-cov         Run tests with coverage
-make lint             Lint and auto-fix
-make format           Format code
+make check    Run the full local check suite — exactly what CI and
+              pre-commit run. Read-only; never modifies files.
+make fix      Run every auto-fixer (format + lint + repo hygiene).
+              Run this locally before committing.
 ```
+
+Pre-commit is intentionally **check-only** — it verifies but never modifies
+files mid-commit. A failed commit means "run `make fix` and try again."
+See [`docs/REPO_SETUP.md`](docs/REPO_SETUP.md#make-targets-check-vs-fix)
+for the full check/fix breakdown.
 
 ## Project Structure
 
 ```text
 src/
   my_project/             Your package (renamed by `make bootstrap` on first run)
+    __main__.py           Entry point: `python -m my_project`
     __version__.py        Version (reads from pyproject.toml metadata)
     config/
       config.py           Pydantic configuration schemas
@@ -96,7 +102,11 @@ docs/
   REPO_SETUP.md           Template internals & customization guide (safe to delete)
 scripts/
   bootstrap_template.py   One-time template rename (deletes itself after first run)
+  release.sh              python-semantic-release driver (called from CI)
 tests/
+Dockerfile                Hardened multi-stage image (removable via `make bootstrap`)
+docker-compose.yaml       Hardened local-run compose (volume-mounted config)
+.dockerignore             Build-context exclusions
 wiki/
   index.md                Catalog of all wiki pages
   log.md                  Timeline of wiki activity

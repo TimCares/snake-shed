@@ -1,0 +1,48 @@
+# VCS
+.git/
+.gitignore
+.gitlab/
+.gitlab-ci.yml
+.gitleaks.toml
+
+# Python build / cache
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Tests / docs / wiki (not needed at runtime)
+tests/
+docs/
+wiki/
+
+# Template-internal / dev tooling
+scripts/
+Makefile
+.pre-commit-config.yaml
+trivy.yaml
+AGENTS.md
+CLAUDE.md
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yaml
+docker-compose.*.yaml
+docker/
+
+# IDE / OS
+.vscode/
+.idea/
+.cursor/
+*.swp
+.DS_Store

@@ -4,12 +4,20 @@ stages:
   - security
   - release
   - docker
+  - maintenance
 
 .uv-base:
-  image: ghcr.io/astral-sh/uv:python3.13-trixie
+  image: ghcr.io/astral-sh/uv:0.11.16-python3.13-trixie
   before_script:
     - uv sync --group dev --frozen
   cache:
     key: uv-${CI_COMMIT_REF_SLUG}
     paths:
       - .venv/
+  # Renovate runs in its own pipeline schedule (RENOVATE=true). Everything
+  # that extends `.uv-base` inherits this skip so a Renovate run does not
+  # also fire tests, releases, etc.
+  rules:
+    - if: '$RENOVATE == "true"'
+      when: never
+    - when: on_success

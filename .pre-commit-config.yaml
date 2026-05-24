@@ -1,26 +1,34 @@
-default_install_hook_types: [pre-commit, commit-msg]
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
 
 # Pre-commit philosophy: CHECK ONLY — hooks here verify but never modify files.
 # To auto-fix issues locally, run `make fix` (or the per-tool targets:
-# `make format`, `make lint`, `make repo-fix`). The same `make check` aggregate
-# runs in CI, so what passes here passes there.
+# `make format`, `make lint`, `make repo-fix`).
+#
+# Hook stages used here:
+#   pre-commit  — per-tool checks on staged files (fast, granular).
+#   commit-msg  — commitizen enforces Conventional Commits format.
+#   pre-push    — runs the full `make check` aggregate; same as CI.
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       # `trailing-whitespace` and `end-of-file-fixer` are intentionally NOT
       # listed here — they are auto-fixers with no check-only mode. Use
       # `make repo-fix` to apply them.
       - id: check-yaml
       - id: check-toml
+      - id: check-json
       - id: check-added-large-files
         args: [--maxkb=500]
+      - id: check-case-conflict
       - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
       - id: debug-statements
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.2
+    rev: v0.15.14
     hooks:
       - id: ruff-format
         args: [--check]
@@ -28,14 +36,33 @@ repos:
         # Default behavior is check-only (no `--fix`). To auto-fix locally,
         # run `make lint` or `make fix`.
 
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.2
+    hooks:
+      - id: codespell
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+
+  # `hadolint-docker` pulls the upstream hadolint image on first run, so no
+  # local `brew install hadolint` is needed. Only fires when a Dockerfile is
+  # staged (`types: [dockerfile]`), so Docker is not required for unrelated
+  # commits. Remove this repo if you drop Docker support via `make bootstrap`.
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.14.0
+    hooks:
+      - id: hadolint-docker
+
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.13.9
+    rev: v4.16.2
     hooks:
       - id: commitizen
         stages: [commit-msg]
 
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.24.3
+    rev: v8.30.0
     hooks:
       - id: gitleaks
 
@@ -69,3 +96,14 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      # Pre-push safety net: re-runs the full `make check` aggregate (exactly
+      # what CI runs). Catches drift between the per-commit hooks above and
+      # the CI quality stage before code leaves your machine.
+      - id: make-check
+        name: make check (pre-push)
+        entry: make check
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

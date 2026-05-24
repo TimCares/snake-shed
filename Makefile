@@ -99,12 +99,32 @@ type-check:  ## [check] Type check with ty
 docstring-check:  ## [check] Check docstring coverage
 	$(PY) run interrogate -v
 
+.PHONY: spell-check
+spell-check:  ## [check] Spell-check code and docs with codespell
+	$(PY) run pre-commit run codespell --all-files
+
+.PHONY: shell-check
+shell-check:  ## [check] Lint shell scripts with shellcheck
+	$(PY) run pre-commit run shellcheck --all-files
+
+# `dockerfile-check` runs hadolint via Docker and is therefore excluded from
+# `make check` — we don't want the CI/pre-push aggregate to require a running
+# Docker daemon. Pre-commit's `hadolint-docker` hook already runs it when a
+# Dockerfile is staged; this target is for manual / explicit runs.
+.PHONY: dockerfile-check
+dockerfile-check:  ## [check] Lint Dockerfile with hadolint (requires Docker; opt-in)
+	$(PY) run pre-commit run hadolint-docker --all-files
+
 .PHONY: repo-check
 repo-check:  ## [check] Run repository hygiene checks from pre-commit
 	$(PY) run pre-commit run check-yaml --all-files
 	$(PY) run pre-commit run check-toml --all-files
+	$(PY) run pre-commit run check-json --all-files
 	$(PY) run pre-commit run check-added-large-files --all-files
+	$(PY) run pre-commit run check-case-conflict --all-files
 	$(PY) run pre-commit run check-merge-conflict --all-files
+	$(PY) run pre-commit run check-executables-have-shebangs --all-files
+	$(PY) run pre-commit run check-shebang-scripts-are-executable --all-files
 	$(PY) run pre-commit run debug-statements --all-files
 
 .PHONY: audit
@@ -128,9 +148,11 @@ test-cov:  ## [check] Run tests with coverage report
 	$(PY) run pytest --cov --cov-report=term-missing $(PYTEST_COV_REPORT_ARGS) $(PYTEST_ARGS)
 
 # `check` is the aggregate the CI pipeline and pre-commit can rely on.
-# Excludes `trivy` because it downloads a large vulnerability DB on every run.
+# Excludes `trivy` (slow: downloads a large vulnerability DB) and
+# `dockerfile-check` (requires Docker daemon — pre-commit's `hadolint-docker`
+# hook already runs it when a Dockerfile is staged).
 .PHONY: check
-check: repo-check format-check lint-check type-check docstring-check test-cov audit find-secrets  ## [check] Run the full local check suite (no file changes)
+check: repo-check format-check lint-check type-check docstring-check spell-check shell-check test-cov audit find-secrets  ## [check] Run the full local check suite (no file changes)
 
 # =============================================================================
 # Fix targets (modify files — run locally before committing)

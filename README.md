@@ -15,6 +15,7 @@
   <a href="https://pypi.org/project/pip-audit/"><img src="https://img.shields.io/badge/pip--audit-checked-brightgreen" alt="pip-audit"></a>
   <a href="https://github.com/gitleaks/gitleaks"><img src="https://img.shields.io/badge/gitleaks-protected-4B0082" alt="Gitleaks"></a>
   <a href="https://github.com/aquasecurity/trivy"><img src="https://img.shields.io/badge/trivy-scanned-1904DA?logo=aquasecurity&logoColor=white" alt="Trivy"></a>
+  <a href="https://docs.renovatebot.com/"><img src="https://img.shields.io/badge/renovate-enabled-1A1F6C?logo=renovatebot&logoColor=white" alt="Renovate"></a>
 </p>
 
 Setting up a new Python project should not require rebuilding the same tooling every time.
@@ -28,6 +29,7 @@ This project is a compact template with all the components already included. Fea
 - Automated testing
 - CI (`gitlab`, easily swappable)
 - Enterprise-ready git workflow (conventional commits, semantic-release, pre-commit hooks)
+- Automated dependency updates via [Renovate](https://docs.renovatebot.com/) (uv, pre-commit hooks, container images, CI image pins)
 - Built-in `Makefile` commands to simplify all of the above
 - LLM-maintained [`wiki`](wiki/README.md) for easy (project) documentation
 - A [`docs`](docs/) directory for usual documentation

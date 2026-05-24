@@ -41,18 +41,12 @@ TESTS = ROOT / "tests"
 UV_LOCK = ROOT / "uv.lock"
 LICENSE_FILE = ROOT / "LICENSE"
 REPO_SETUP = ROOT / "docs" / "REPO_SETUP.md"
-CI_BASE = ROOT / ".gitlab" / "ci" / "base.yml"
-
-DOCKER_FILES: tuple[str, ...] = (
-    "Dockerfile",
-    ".dockerignore",
-    "docker-compose.yaml",
-    ".gitlab/ci/docker.yml",
-)
 
 # Docker files split by which placeholder substitution they need.
 # Image-name references (Docker convention: hyphens) get the project name;
-# Python module paths get the package name (underscores).
+# Python module paths get the package name (underscores). The template
+# always ships Docker support — users who don't want it follow the
+# manual-removal recipe in `docs/REPO_SETUP.md`.
 DOCKER_REWRITE_PACKAGE: tuple[str, ...] = ("Dockerfile",)
 DOCKER_REWRITE_PROJECT: tuple[str, ...] = ("docker-compose.yaml", ".gitlab/ci/docker.yml")
 
@@ -313,25 +307,6 @@ def update_docker_files(inputs: TemplateInputs) -> None:
         _rewrite(rel_path, inputs.project)
 
 
-def remove_docker_files() -> None:
-    """Delete Docker support files and strip the docker stage from CI base.
-
-    Called when the user opts out of Docker support during bootstrap.
-    """
-    for rel_path in DOCKER_FILES:
-        path = ROOT / rel_path
-        if path.exists():
-            path.unlink()
-            print(f"  - removed {rel_path}")
-
-    if CI_BASE.exists():
-        text = CI_BASE.read_text()
-        new_text = re.sub(r"^\s*-\s*docker\s*\n", "", text, count=1, flags=re.MULTILINE)
-        if new_text != text:
-            CI_BASE.write_text(new_text)
-            print(f"  - removed `- docker` stage from {CI_BASE.relative_to(ROOT)}")
-
-
 def delete_uv_lock() -> None:
     """Drop the lock file so ``uv sync`` regenerates it under the new name."""
     if UV_LOCK.exists():
@@ -351,8 +326,7 @@ def delete_license() -> None:
     if LICENSE_FILE.exists():
         LICENSE_FILE.unlink()
         print(
-            f"  - deleted {LICENSE_FILE.relative_to(ROOT)} "
-            "(add your own LICENSE before publishing)"
+            f"  - deleted {LICENSE_FILE.relative_to(ROOT)} (add your own LICENSE before publishing)"
         )
 
 
@@ -403,22 +377,6 @@ def decide_git_reset(*, override: bool | None, non_interactive: bool) -> bool:
         return False
     return confirm(
         "Reset git history? (starts a fresh repo with one initial commit)",
-        default=True,
-        non_interactive=False,
-    )
-
-
-def decide_keep_docker(*, override: bool | None, non_interactive: bool) -> bool:
-    """Decide whether to keep the Docker support files.
-
-    Precedence: explicit CLI flag > non-interactive default (keep) > prompt.
-    """
-    if override is not None:
-        return override
-    if non_interactive:
-        return True
-    return confirm(
-        "Keep Docker support? (Dockerfile, .dockerignore, CI job, docs)",
         default=True,
         non_interactive=False,
     )
@@ -477,7 +435,7 @@ def reset_git_history(*, author_name: str, author_email: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def print_plan(inputs: TemplateInputs, *, reset_git: bool, keep_docker: bool) -> None:
+def print_plan(inputs: TemplateInputs, *, reset_git: bool) -> None:
     """Show the user exactly what will change before we touch anything."""
     print()
     print("The following changes will be made:")
@@ -493,10 +451,7 @@ def print_plan(inputs: TemplateInputs, *, reset_git: bool, keep_docker: bool) ->
     print(f"  - set [tool.uv.build-backend].module-name = {inputs.package!r}")
     print(f"  - replace placeholders in README.md ({PLACEHOLDER_DISPLAY!r}, project structure)")
     print(f"  - rewrite `{PLACEHOLDER_PACKAGE}` imports under tests/")
-    if keep_docker:
-        print(f"  - rewrite `{PLACEHOLDER_PACKAGE}` in Docker files (Dockerfile, compose, CI)")
-    else:
-        print("  - remove Docker support files (Dockerfile, .dockerignore, compose, CI)")
+    print(f"  - rewrite `{PLACEHOLDER_PACKAGE}` in Docker files (Dockerfile, compose, CI)")
     print("  - delete uv.lock (regenerated on next `uv sync`)")
     if LICENSE_FILE.exists():
         print("  - delete LICENSE (no default is provided — add one before publishing)")
@@ -527,18 +482,6 @@ def main() -> int:
             "skipped under --yes."
         ),
     )
-    parser.add_argument(
-        "--docker",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help=(
-            "Keep (--docker) or remove (--no-docker) the Docker support files "
-            "(Dockerfile, .dockerignore, docker-compose.yaml, "
-            ".gitlab/ci/docker.yml, and the `docker` CI stage). If unspecified, "
-            "you are prompted interactively (default Yes) or the files are "
-            "kept under --yes."
-        ),
-    )
     args = parser.parse_args()
     non_interactive = bool(args.yes)
 
@@ -553,8 +496,7 @@ def main() -> int:
 
     inputs = collect_inputs(non_interactive=non_interactive)
     reset_git = decide_git_reset(override=args.reset_git, non_interactive=non_interactive)
-    keep_docker = decide_keep_docker(override=args.docker, non_interactive=non_interactive)
-    print_plan(inputs, reset_git=reset_git, keep_docker=keep_docker)
+    print_plan(inputs, reset_git=reset_git)
 
     if not confirm("Proceed with these changes?", default=True, non_interactive=non_interactive):
         print("Aborted. No files were modified.")
@@ -566,15 +508,11 @@ def main() -> int:
     update_version_file(inputs)
     update_readme(inputs)
     update_test_imports(inputs.package)
-    if keep_docker:
-        update_docker_files(inputs)
+    update_docker_files(inputs)
     delete_uv_lock()
     delete_license()
     print()
     maybe_delete_repo_setup(non_interactive=non_interactive)
-    if not keep_docker:
-        print()
-        remove_docker_files()
     print()
     self_delete()
     if reset_git:

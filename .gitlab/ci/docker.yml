@@ -5,13 +5,18 @@ variables:
 
 docker:
   stage: docker
-  image: docker:27
+  image: docker:29.5.2-cli
   services:
-    - docker:27-dind
+    - docker:29.5.2-dind-rootless
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
   needs:
     - job: semantic-release
       artifacts: true
   rules:
+    - if: '$RENOVATE == "true"'
+      when: never
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   before_script:
     - |

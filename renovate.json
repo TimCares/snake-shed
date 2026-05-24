@@ -1,0 +1,63 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":enableVulnerabilityAlertsWithLabel(security)",
+    "group:allNonMajor",
+    "schedule:weekly"
+  ],
+  "labels": ["dependencies"],
+  "rangeStrategy": "update-lockfile",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 0-3 * * 1"]
+  },
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 4,
+  "packageRules": [
+    {
+      "description": "Group all Python dev dependencies into one PR",
+      "matchManagers": ["pep621"],
+      "matchDepTypes": ["dev"],
+      "groupName": "python dev dependencies"
+    },
+    {
+      "description": "All pre-commit hook revs land in one PR by default",
+      "matchManagers": ["pre-commit"],
+      "groupName": "pre-commit hooks"
+    },
+    {
+      "description": "Container base images (Dockerfile + GitLab CI image:) in one PR, with digest pinning",
+      "matchManagers": ["dockerfile", "docker-compose", "gitlabci"],
+      "groupName": "container images",
+      "pinDigests": true
+    },
+    {
+      "description": "Pytest + plugins together (overrides earlier dev/precommit grouping)",
+      "matchPackageNames": ["/^pytest/"],
+      "groupName": "pytest"
+    },
+    {
+      "description": "Ruff library + pre-commit hook together (overrides earlier grouping)",
+      "matchPackageNames": ["/^ruff$/", "/ruff-pre-commit/"],
+      "groupName": "ruff"
+    },
+    {
+      "description": "Gitleaks Docker image + pre-commit hook in lockstep (overrides earlier grouping)",
+      "matchPackageNames": ["/gitleaks\\/gitleaks/", "/zricethezav\\/gitleaks/"],
+      "groupName": "gitleaks"
+    },
+    {
+      "description": "Major bumps land alone and need manual review",
+      "matchUpdateTypes": ["major"],
+      "addLabels": ["major-update"],
+      "automerge": false
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "schedule": "at any time",
+    "minimumReleaseAge": null
+  }
+}

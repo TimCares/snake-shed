@@ -1,0 +1,50 @@
+# CODEOWNERS — required reviewers for security-sensitive paths.
+#
+# Format: <path-pattern>  @owner1 @owner2 ...
+# Owners can be GitLab users (@user), groups (@group), sub-groups, or on
+# GitHub: @org/team. Both platforms use the same path syntax (gitignore
+# style with leading `/` anchoring at the repo root).
+#
+# Docs:
+#   GitLab — https://docs.gitlab.com/ee/user/project/codeowners/
+#   GitHub — https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+#
+# IMPORTANT:
+#   1. This file uses placeholder owners (@security-team, @platform-team).
+#      Replace them with real users / groups before relying on it. Both
+#      platforms treat unknown owners as "no required reviewer" and
+#      silently skip the rule — a false sense of security.
+#   2. CODEOWNERS only suggests reviewers by default. To make approval
+#      *required* for merge:
+#        GitLab: Settings → Repository → Protected branches →
+#                "Require approval from code owners"
+#        GitHub: Branch protection rules → "Require review from
+#                Code Owners"
+
+# --- CI / release pipeline ---
+/.gitlab-ci.yml                @security-team
+/.gitlab/ci/                   @security-team
+/.github/workflows/            @security-team
+
+# --- Container build & runtime ---
+/Dockerfile                    @security-team @platform-team
+/.dockerignore                 @platform-team
+/docker-compose.yaml           @platform-team
+
+# --- Dependency / supply chain ---
+/pyproject.toml                @security-team
+/uv.lock                       @security-team
+/renovate.json                 @security-team
+/.pre-commit-config.yaml       @platform-team
+
+# --- Security policy & suppressions ---
+/SECURITY.md                   @security-team
+/CODEOWNERS                    @security-team
+/.trivyignore                  @security-team
+/trivy.yaml                    @security-team
+/.gitleaks.toml                @security-team
+
+# --- Release & signing tooling ---
+/scripts/release.sh            @security-team
+/scripts/verify_image.py       @security-team
+/scripts/check_trivyignore.py  @security-team

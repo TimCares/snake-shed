@@ -59,5 +59,16 @@
     "labels": ["security"],
     "schedule": "at any time",
     "minimumReleaseAge": null
-  }
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track inline-pinned tool versions in CI YAML via `# renovate: datasource=... depName=...` annotations (e.g. COSIGN_VERSION in .gitlab/ci/sign.yml).",
+      "fileMatch": ["^\\.gitlab/ci/.*\\.ya?ml$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)(?:\\s+versioning=(?<versioning>[a-z-]+))?\\s+[A-Z_]+:\\s*\"(?<currentValue>v?[\\d][^\"]*)\""
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
+    }
+  ]
 }

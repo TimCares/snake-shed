@@ -12,9 +12,9 @@ from omegaconf import OmegaConf
 
 from .config import Config
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
-_DEFAULT_CONFIG_PATH = _PROJECT_ROOT / "config" / "config.yaml"
-_DEFAULT_ENV_FILE_PATH = _PROJECT_ROOT / "config" / ".env"
+_DEFAULT_CONFIG_PATH = Path.cwd() / "config" / "config.yaml"
+_DEFAULT_ENV_FILE_PATH = Path.cwd() / "config" / ".env"
+# => code must run from repo root
 
 # Sentinel env var (set in the shipped Dockerfile) that disables the implicit
 # `config/.env` fallback. Containers receive env vars from the runtime

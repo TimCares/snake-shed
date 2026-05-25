@@ -126,6 +126,11 @@ repo-check:  ## [check] Run repository hygiene checks from pre-commit
 	$(PY) run pre-commit run check-executables-have-shebangs --all-files
 	$(PY) run pre-commit run check-shebang-scripts-are-executable --all-files
 	$(PY) run pre-commit run debug-statements --all-files
+	$(PY) run pre-commit run trivyignore-check --all-files
+
+.PHONY: trivyignore-check
+trivyignore-check:  ## [check] Enforce .trivyignore policy (justification + expiry)
+	$(PY) run pre-commit run trivyignore-check --all-files
 
 .PHONY: audit
 audit:  ## [check] Audit dependencies for known vulnerabilities
@@ -139,6 +144,52 @@ find-secrets:  ## [check] Scan for secrets with gitleaks (uses .gitleaks.toml)
 trivy:  ## [check] Scan for vulnerabilities with trivy (uses trivy.yaml; slow, opt-in)
 	docker run --rm -v "$(PWD):/repo" -w /repo ghcr.io/aquasecurity/trivy:latest fs .
 
+# `trivy-full` is the informational counterpart of `trivy`: all severities,
+# dev deps included, never blocks.
+.PHONY: trivy-full
+trivy-full:  ## [check] Trivy scan at all severities incl. dev deps (informational; opt-in)
+	docker run --rm -v "$(PWD):/repo" -w /repo ghcr.io/aquasecurity/trivy:latest \
+		--config-file /dev/null fs --severity LOW,MEDIUM,HIGH,CRITICAL --exit-code 0 .
+
+# Produces sbom.cdx.json —> CycloneDX inventory of every component in the
+# repo. Mirror of the CI `sbom:` job for local use.
+.PHONY: sbom
+sbom:  ## [check] Generate a CycloneDX SBOM at sbom.cdx.json (opt-in)
+	docker run --rm -v "$(PWD):/repo" -w /repo ghcr.io/aquasecurity/trivy:latest \
+		--config-file /dev/null fs --format cyclonedx --output sbom.cdx.json --quiet .
+
+# Image-level vuln scan. Local counterpart of the CI `trivy-image:` job.
+# Mounts `~/.docker` so trivy can use existing registry credentials, and
+# the docker socket so it can also scan locally-built (not-yet-pushed)
+# images. Socket access is root-equivalent —> only run on workstations
+# you control.
+.PHONY: trivy-image
+trivy-image:  ## [check] Vuln scan of a built Docker image. Usage: make trivy-image IMAGE=<ref>
+	@if [ -z "$(IMAGE)" ]; then \
+		echo "Usage: make trivy-image IMAGE=<registry/path>:<tag-or-digest>" >&2; \
+		exit 1; \
+	fi
+	docker run --rm \
+		-v "$(HOME)/.docker:/root/.docker:ro" \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		ghcr.io/aquasecurity/trivy:latest \
+		image --severity HIGH,CRITICAL --exit-code 1 "$(IMAGE)"
+
+# Verify a released image's Sigstore signature. Thin wrapper around
+# `scripts/verify_image.py`, which reads the platform + host from
+# `[tool.semantic_release.remote]` in pyproject.toml — no duplication of
+# "what platform are we on" config across files. For tighter cert pinning
+# in automated gates, invoke the script directly with `--project <group/repo>`.
+.PHONY: verify-image
+verify-image:  ## [check] Verify cosign signature of a released image. Usage: make verify-image IMAGE=<ref>
+	@if [ -z "$(IMAGE)" ]; then \
+		echo "Usage: make verify-image IMAGE=<registry/path>:<tag-or-digest>" >&2; \
+		echo "       For automated deploy gates, invoke the script directly:" >&2; \
+		echo "         python scripts/verify_image.py --project <group/repo> <IMAGE>" >&2; \
+		exit 1; \
+	fi
+	$(PY) run python scripts/verify_image.py "$(IMAGE)"
+
 .PHONY: test
 test:  ## [check] Run tests with pytest
 	$(PY) run pytest $(PYTEST_ARGS)
@@ -148,9 +199,10 @@ test-cov:  ## [check] Run tests with coverage report
 	$(PY) run pytest --cov --cov-report=term-missing $(PYTEST_COV_REPORT_ARGS) $(PYTEST_ARGS)
 
 # `check` is the aggregate the CI pipeline and pre-commit can rely on.
-# Excludes `trivy` (slow: downloads a large vulnerability DB) and
-# `dockerfile-check` (requires Docker daemon — pre-commit's `hadolint-docker`
-# hook already runs it when a Dockerfile is staged).
+# Docker-dependent targets (`trivy`, `trivy-full`, `sbom`, `dockerfile-check`)
+# are intentionally excluded so `make check` runs without a Docker daemon.
+# pre-commit's `hadolint-docker` hook covers Dockerfile linting on changes;
+# the trivy/sbom targets are opt-in and slow (vuln DB download).
 .PHONY: check
 check: repo-check format-check lint-check type-check docstring-check spell-check shell-check test-cov audit find-secrets  ## [check] Run the full local check suite (no file changes)
 
@@ -215,7 +267,7 @@ clean:  ## [cleanup] Remove local build, test, and cache artifacts
 	find . -type f -name "*.log" -delete
 	rm -rf .cache .hypothesis .nox .pytest_cache .ruff_cache .tox
 	rm -rf .uv-cache .eggs build dist htmlcov sdist
-	rm -f .coverage coverage.xml report.xml release.env
+	rm -f .coverage coverage.xml report.xml release.env sbom.cdx.json
 
 .PHONY: clean-all
 clean-all: clean  ## [cleanup] Remove cache files and virtual environment

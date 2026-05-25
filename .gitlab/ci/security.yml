@@ -27,3 +27,43 @@ trivy:
     - when: on_success
   script:
     - trivy fs .
+
+# Informational broad-severity scan. Bypasses `trivy.yaml` (which scopes the
+# strict scan to HIGH/CRITICAL runtime deps) so it surfaces LOW/MEDIUM
+# findings and dev-dep findings too. `allow_failure: true` keeps it
+# non-blocking —> appears as a yellow warning in the pipeline UI rather than
+# failing the release. `.trivyignore` still applies.
+trivy-full-report:
+  stage: security
+  image:
+    name: ghcr.io/aquasecurity/trivy:0.70.0
+    entrypoint: [""]
+  allow_failure: true
+  rules:
+    - if: '$RENOVATE == "true"'
+      when: never
+    - when: on_success
+  script:
+    - trivy --config-file /dev/null fs --severity LOW,MEDIUM,HIGH,CRITICAL --exit-code 1 .
+
+# CycloneDX SBOM of the full repo. Stored as a CI artifact so it can be
+# re-scanned later (`trivy sbom sbom.cdx.json`) against a newer
+# vulnerability DB without rebuilding. Also the deliverable expected by
+# EU CRA / US EO 14028-style compliance regimes.
+sbom:
+  stage: security
+  image:
+    name: ghcr.io/aquasecurity/trivy:0.70.0
+    entrypoint: [""]
+  rules:
+    - if: '$RENOVATE == "true"'
+      when: never
+    - when: on_success
+  script:
+    - trivy --config-file /dev/null fs --format cyclonedx --output sbom.cdx.json --quiet .
+  artifacts:
+    name: "sbom-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - sbom.cdx.json
+    expire_in: 1 year
+    when: on_success

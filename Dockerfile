@@ -53,10 +53,13 @@ RUN adduser \
 
 WORKDIR /app
 
-# Copy the production virtual environment and runtime assets.
+# Copy the production virtual environment with runtime assets.
 COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
-COPY --chown=appuser:appuser src/ src/
 
 USER appuser
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request, sys; \
+        sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz', timeout=2).status == 200 else 1)"
 
 CMD ["python", "-m", "my_project"]

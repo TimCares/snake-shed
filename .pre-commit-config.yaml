@@ -97,6 +97,16 @@ repos:
         pass_filenames: false
         always_run: true
 
+      # Enforces the `.trivyignore` policy (justification comment + expiry
+      # date on every entry). Runs only when `.trivyignore` is staged; pure
+      # stdlib Python so it needs no extra environment setup.
+      - id: trivyignore-check
+        name: trivyignore policy
+        entry: python3 scripts/check_trivyignore.py
+        language: system
+        files: '^\.trivyignore$'
+        pass_filenames: false
+
       # Pre-push safety net: re-runs the full `make check` aggregate (exactly
       # what CI runs). Catches drift between the per-commit hooks above and
       # the CI quality stage before code leaves your machine.

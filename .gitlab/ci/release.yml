@@ -3,6 +3,20 @@ semantic-release:
   stage: release
   variables:
     GIT_DEPTH: 0
+    # Pinned here (not in scripts/release.sh) so Renovate's customManager
+    # picks it up via the `# renovate: datasource=... depName=...` comment.
+    # The shell script reads $GITSIGN_VERSION from the job env.
+    # renovate: datasource=github-releases depName=sigstore/gitsign
+    GITSIGN_VERSION: "v0.10.2"
+  # Same OIDC trick cosign uses: GitLab issues a short-lived token bound to
+  # this CI job's identity, gitsign exchanges it at Fulcio for an ephemeral
+  # signing cert, the release commit + tag get signed, the event lands in
+  # Rekor. Sigstore-anchored chain becomes:
+  #   release commit (gitsign) → image (cosign) → vuln scan (cosign attest)
+  # all under the same OIDC identity.
+  id_tokens:
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
   script:
     - sh scripts/release.sh
   artifacts:

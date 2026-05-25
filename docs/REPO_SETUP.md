@@ -27,7 +27,8 @@ invoked automatically by `make bootstrap` on the very first run. It:
    project name.
 5. **Offers to delete this file** (`docs/REPO_SETUP.md`), since it's
    template-specific and probably isn't useful to keep around in a real
-   project.
+   project. The [`docs/security/`](security/README.md) directory is
+   **never** touched, those docs survive the bootstrap.
 6. **Optionally resets git history** — wipes `.git/` and creates a fresh
    repo with a single initial commit, so your project doesn't carry the
    template's commit history. Prompted interactively (default Yes); skipped
@@ -151,7 +152,10 @@ the `make` target(s) that drive it.
 | Tests          | [pytest](https://docs.pytest.org/) + `pytest-cov` | `test`, `test-cov`                | `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
 | Dep audit      | [pip-audit](https://pypi.org/project/pip-audit/) | `audit`                           | `PIP_AUDIT_IGNORE` in `Makefile`         |
 | Secret scan    | [gitleaks](https://github.com/gitleaks/gitleaks) | `find-secrets`                    | `.gitleaks.toml`                         |
-| Image scan     | [trivy](https://github.com/aquasecurity/trivy) | `trivy`                           | `trivy.yaml`                             |
+| Vuln scan      | [trivy](https://github.com/aquasecurity/trivy) (fs + image) | `trivy`, `trivy-full`, `trivy-image`, `sbom` | `trivy.yaml`, `.trivyignore` &nbsp; — &nbsp; **docs:** [`docs/security/scanning.md`](security/scanning.md) |
+| Image sign     | [cosign](https://docs.sigstore.dev/cosign/) (Sigstore, keyless) | `verify-image` | `.gitlab/ci/sign.yml`, `scripts/verify_image.py` &nbsp; — &nbsp; **docs:** [`docs/security/sigstore.md`](security/sigstore.md) |
+| Commit sign    | [gitsign](https://docs.sigstore.dev/cosign/signing/gitsign/) (Sigstore, keyless) | (CI release commits)              | `.gitlab/ci/release.yml`, `scripts/release.sh` &nbsp; — &nbsp; **docs:** [`docs/security/sigstore.md`](security/sigstore.md) |
+| Sec. policy    | `SECURITY.md` + `CODEOWNERS`  | (reviewer-gated)                  | `SECURITY.md`, `CODEOWNERS` &nbsp; — &nbsp; **docs:** [`docs/security/policy.md`](security/policy.md) |
 | Pre-commit     | [pre-commit](https://pre-commit.com/) | `pre-commit-install`              | `.pre-commit-config.yaml`                |
 | Commit style   | [commitizen](https://commitizen-tools.github.io/commitizen/) | (commit-msg hook)                 | `[tool.commitizen]`                      |
 | Releases       | [python-semantic-release](https://python-semantic-release.readthedocs.io/) | `scripts/release.sh` (CI)         | `[tool.semantic_release]`                |
@@ -183,6 +187,33 @@ The hook config installs three stages (`default_install_hook_types`):
   drift between the per-tool hooks and the CI aggregate: any check added to
   `make check` is automatically gated at push-time without touching
   `.pre-commit-config.yaml`.
+
+---
+
+## Security
+
+This template ships a layered security posture: vulnerability + secret
+scanning, signed releases (image + commit + vuln-scan attestation),
+and policy / reviewer gating for the security-sensitive paths.
+
+The detailed documentation for all of it lives under
+[**`docs/security/`**](security/README.md), which is **deliberately kept
+out of this file**: `bootstrap_template.py` offers to delete
+`docs/REPO_SETUP.md` after first run (it's template-setup notes you
+mostly don't want polluting downstream history), but it leaves the
+`docs/security/` directory alone so the security docs survive the
+template bootstrap and stay with your project forever.
+
+| File                                                        | Covers                                                                                                       |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| [`docs/security/README.md`](security/README.md)             | Overview, threat model, layered-defence diagram, "I just want to verify a release" cheat-sheet.              |
+| [`docs/security/scanning.md`](security/scanning.md)         | Trivy 4-tier scan model, `pip-audit`, gitleaks, SBOM, the `.trivyignore` justification + expiry policy.       |
+| [`docs/security/sigstore.md`](security/sigstore.md)         | Sigstore signing (`cosign` image + `cosign attest --type vuln` + `gitsign` release commits), verification, and how to operate this with **private artifacts** (self-hosted Sigstore / key-based fallback). |
+| [`docs/security/policy.md`](security/policy.md)             | `SECURITY.md` (vulnerability disclosure), `CODEOWNERS` (reviewer gating), CI / runner hardening (`CI_JOB_TOKEN` scope, protected branches/tags). |
+
+Start with `docs/security/README.md` if you want the conceptual tour,
+or jump straight into the topic-specific files if you're chasing a
+particular concern.
 
 ---
 
@@ -218,8 +249,14 @@ below; together they take under a minute.
 1. **Delete the files:**
 
    ```bash
-   git rm Dockerfile .dockerignore docker-compose.yaml .gitlab/ci/docker.yml
+   git rm Dockerfile .dockerignore docker-compose.yaml \
+          .gitlab/ci/docker.yml .gitlab/ci/image-scan.yml .gitlab/ci/sign.yml \
+          scripts/verify_image.py
    ```
+
+   (The `image-scan.yml`, `sign.yml`, and `verify_image.py` are part of
+   the same supply-chain story as the build job — they're meaningless
+   without an image to scan / sign / verify.)
 
 2. **Drop the `docker` stage** in `.gitlab/ci/base.yml`:
 
@@ -245,6 +282,12 @@ below; together they take under a minute.
 
 Optionally, if still present, also drop the **Container** and **Dockerfile lint** rows from
 the Tooling Overview table further up this document.
+
+Finally, prune the now-orphaned **Image sign** and **trivy-image** rows
+from the Tooling Overview table, and remove or update the corresponding
+sections in [`docs/security/sigstore.md`](security/sigstore.md) and
+[`docs/security/scanning.md`](security/scanning.md) — neither makes
+sense without an image to sign / scan.
 
 ---
 

@@ -24,8 +24,12 @@ This project is a compact template with all the components already included. Fea
 
 - Easy python environment handling
 - Full config handling with YAML and env files
-- Strict code quality checks (some dare say even too strict!)
-- Security scanning
+- Strict code quality checks
+- Layered security: vulnerability + secret scanning, signed releases
+  (cosign images + gitsign commits + signed vuln-scan attestations),
+  CycloneDX SBOMs, `.trivyignore` policy with mandatory justification
+  + expiry, hardened runtime environment. See [`docs/security/`](docs/security/README.md) for the
+  full story.
 - Automated testing
 - CI (`gitlab`, easily swappable)
 - Enterprise-ready git workflow (conventional commits, semantic-release, pre-commit hooks)
@@ -39,7 +43,9 @@ should adjust it according to your requirements and taste. There is a lot to
 take in — [`docs/REPO_SETUP.md`](docs/REPO_SETUP.md) walks through every
 moving part, why it's there, and how to swap or remove it. (Feel free to
 delete that file once you're done with it; `make bootstrap` will offer to
-do it for you.)
+do it for you. The [`docs/security/`](docs/security/README.md) directory
+is **not** offered for deletion, those docs survive the bootstrap and
+stay with your project.)
 
 ## Prerequisites
 
@@ -87,6 +93,29 @@ files mid-commit. A failed commit means "run `make fix` and try again."
 See [`docs/REPO_SETUP.md`](docs/REPO_SETUP.md#make-targets-check-vs-fix)
 for the full check/fix breakdown.
 
+## Running
+
+The central entrypoint of this repo is [`src/my_project/__main__.py`](src/my_project/__main__.py).
+You can run it from the root of the repository with:
+
+### Locally
+
+```bash
+python -m my_project
+```
+
+### Docker
+
+Or by running the [`docker container`](./Dockerfile) (built-in) with [`docker-compose.yaml`](./docker-compose.yaml):
+
+```bash
+docker compose up -d --build
+```
+
+Note: Because the loading of the [`config/config.yaml`](config/config.yaml) is implemented so that it works out of
+the box for both local execution and docker, when running locally the code should be run as specified in the first
+[example](#locally). Otherwise, the config file cannot be resolved.
+
 ## Project Structure
 
 ```text
@@ -102,6 +131,11 @@ config/
   .env.dist               Environment variable template
 docs/
   REPO_SETUP.md           Template internals & customization guide (safe to delete)
+  security/               Security posture docs (survive `make bootstrap`)
+    README.md             Overview + threat model + layered defense
+    scanning.md           Trivy 4-tier model, pip-audit, gitleaks, SBOM
+    sigstore.md           cosign + gitsign + private-artifact options
+    policy.md             SECURITY.md, CODEOWNERS, CI/runner hardening
 scripts/
   bootstrap_template.py   One-time template rename (deletes itself after first run)
   release.sh              python-semantic-release driver (called from CI)

@@ -66,6 +66,18 @@ repos:
     hooks:
       - id: gitleaks
 
+  # Structural validation of the OpenVEX document
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.37.2
+    hooks:
+      - id: check-jsonschema
+        alias: vex-schema
+        name: openvex schema (structural)
+        files: '^openvex\.json$'
+        args:
+          - --schemafile
+          - https://raw.githubusercontent.com/openvex/spec/main/openvex_json_schema.json
+
   - repo: local
     hooks:
       - id: ty
@@ -97,14 +109,12 @@ repos:
         pass_filenames: false
         always_run: true
 
-      # Enforces the `.trivyignore` policy (justification comment + expiry
-      # date on every entry). Runs only when `.trivyignore` is staged; pure
-      # stdlib Python so it needs no extra environment setup.
-      - id: trivyignore-check
-        name: trivyignore policy
-        entry: python3 scripts/check_trivyignore.py
+      # Local-policy of the OpenVEX checks
+      - id: vex-freshness
+        name: openvex local policy
+        entry: python3 scripts/check_vex.py
         language: system
-        files: '^\.trivyignore$'
+        files: '^(openvex\.json|scripts/check_vex\.py)$'
         pass_filenames: false
 
       # Pre-push safety net: re-runs the full `make check` aggregate (exactly

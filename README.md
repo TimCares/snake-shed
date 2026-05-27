@@ -26,10 +26,11 @@ This project is a compact template with all the components already included. Fea
 - Full config handling with YAML and env files
 - Strict code quality checks
 - Layered security: vulnerability + secret scanning, signed releases
-  (cosign images + gitsign commits + signed vuln-scan attestations),
-  CycloneDX SBOMs, `.trivyignore` policy with mandatory justification
-  + expiry, hardened runtime environment. See [`docs/security/`](docs/security/README.md) for the
-  full story.
+  (cosign images + gitsign commits + signed vuln-scan, SBOM, SLSA, and
+  OpenVEX attestations), CycloneDX SBOMs, single-source-of-truth
+  OpenVEX accepted-risk document with controlled-vocab justifications
+  + enforced freshness window, hardened runtime environment. See
+  [`docs/security/`](docs/security/README.md) for the full story.
 - Automated testing
 - CI (`gitlab`, easily swappable)
 - Enterprise-ready git workflow (conventional commits, semantic-release, pre-commit hooks)

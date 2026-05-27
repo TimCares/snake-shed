@@ -26,13 +26,13 @@ trivy:
       when: never
     - when: on_success
   script:
-    - trivy fs .
+    - trivy fs --vex openvex.json .
 
 # Informational broad-severity scan. Bypasses `trivy.yaml` (which scopes the
 # strict scan to HIGH/CRITICAL runtime deps) so it surfaces LOW/MEDIUM
 # findings and dev-dep findings too. `allow_failure: true` keeps it
 # non-blocking —> appears as a yellow warning in the pipeline UI rather than
-# failing the release. `.trivyignore` still applies.
+# failing the release. The OpenVEX document still suppresses triaged CVEs.
 trivy-full-report:
   stage: security
   image:
@@ -44,7 +44,7 @@ trivy-full-report:
       when: never
     - when: on_success
   script:
-    - trivy --config-file /dev/null fs --severity LOW,MEDIUM,HIGH,CRITICAL --exit-code 1 .
+    - trivy fs --severity LOW,MEDIUM,HIGH,CRITICAL --exit-code 1 --include-dev-deps --vex openvex.json .
 
 # CycloneDX SBOM of the full repo. Stored as a CI artifact so it can be
 # re-scanned later (`trivy sbom sbom.cdx.json`) against a newer
@@ -60,7 +60,7 @@ sbom:
       when: never
     - when: on_success
   script:
-    - trivy --config-file /dev/null fs --format cyclonedx --output sbom.cdx.json --quiet .
+    - trivy fs --format cyclonedx --output sbom.cdx.json --quiet .
   artifacts:
     name: "sbom-$CI_COMMIT_SHORT_SHA"
     paths:

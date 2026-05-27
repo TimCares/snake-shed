@@ -31,8 +31,9 @@
 #      to confirm both WHO scanned and WHAT they found, without trusting
 #      CI logs after the fact.
 #
-# Policy invariant: the same `.trivyignore` (justification + expiry)
-# governs both fs and image scans — one suppression file, one CVE budget.
+# Policy invariant: the same OpenVEX document (`openvex.json` at the
+# repo root) governs both fs and image scans, as well as pip-audit
+# => one suppression document
 
 trivy-image:
   stage: docker
@@ -51,9 +52,10 @@ trivy-image:
   variables:
     # Trivy reads these env vars to pull from private registries.
     # CI_REGISTRY_USER / CI_REGISTRY_PASSWORD give read access to this
-    # project's own container registry — all this scan needs.
+    # project's own container registry, all this scan needs.
     TRIVY_USERNAME: $CI_REGISTRY_USER
     TRIVY_PASSWORD: $CI_REGISTRY_PASSWORD
+    VEX_FILE: openvex.json
   script:
     - |
       if [ "$RELEASED" != "true" ]; then
@@ -66,6 +68,7 @@ trivy-image:
       # found; the strict pass at the end enforces the blocking decision.
       trivy image \
         --severity HIGH,CRITICAL \
+        --vex "$VEX_FILE" \
         --exit-code 0 \
         --format template \
         --template '@/contrib/gitlab.tpl' \
@@ -76,6 +79,7 @@ trivy-image:
       # for the same reason as pass 1 — gate decision lives in pass 3.
       trivy image \
         --severity HIGH,CRITICAL \
+        --vex "$VEX_FILE" \
         --exit-code 0 \
         --format cosign-vuln \
         --output cosign-vuln.json \
@@ -84,6 +88,7 @@ trivy-image:
       # Vuln DB is cached from earlier passes, so this is fast.
       trivy image \
         --severity HIGH,CRITICAL \
+        --vex "$VEX_FILE" \
         --exit-code 1 \
         "$IMG"
   artifacts:

@@ -8,7 +8,7 @@ Catalog of all wiki pages. Read this first to find relevant content.
 
 <!-- | File | Summary |
 |------|---------|
-| [example](decisions/example.md) | One-line summary | -->
+| [example](decisions/YYYY-MM-DD-example.md) | One-line summary | -->
 
 No decisions recorded yet.
 

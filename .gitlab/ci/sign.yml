@@ -4,7 +4,7 @@
 # Runs in its own file so the build job stays focused and so signing can be
 # disabled or replaced (e.g. with `notation`) by editing this one file. The
 # image plus its OCI 1.1 attachments (SBOM, SLSA provenance) are written by
-# the `docker:` job; this job adds four *signed* artifacts:
+# the `docker:` job; this job adds five *signed* artifacts:
 #
 #   1. A Sigstore signature on the image manifest digest itself
 #      (`cosign sign`).
@@ -21,13 +21,19 @@
 #      the BuildKit SLSA `mode=max` predicate (`cosign attest --type
 #      slsaprovenance`, consuming `image-provenance.json` extracted by
 #      the `docker:` job).
+#   5. A signed in-toto attestation of type `openvex` carrying this
+#      project's OpenVEX document (`cosign attest --type openvex`,
+#      consuming `openvex.json` at the repo root). Tells downstream
+#      consumers which CVEs this project has triaged and on what
+#      grounds. Machine-readable, scanner-portable, anchored to the
+#      same CI OIDC identity as the rest of the chain.
 #
 # The original OCI 1.1 referrers buildx wrote in step 0 stay in place —
 # anyone can still discover them without cosign. This job just layers a
 # Sigstore-anchored *signed* copy of each on top, so cosign-aware
 # consumers can verify them against this project's OIDC identity.
 #
-# All four signed artifacts attach as OCI 1.1 referrers to the image
+# All five signed artifacts attach as OCI 1.1 referrers to the image
 # digest. Each gets its own Fulcio cert + Rekor entry, so a compromise
 # of one doesn't taint the others.
 #
@@ -131,6 +137,13 @@ cosign-sign:
         --type slsaprovenance \
         "$IMAGE_REF"
 
+      # OpenVEX attestation, tamper resistant
+      echo "Attesting OpenVEX (predicate: openvex.json)"
+      cosign attest --yes \
+        --predicate openvex.json \
+        --type openvex \
+        "$IMAGE_REF"
+
       echo "Verifying signature round-trip..."
       cosign verify \
         --certificate-identity-regexp "$CERT_IDENTITY" \
@@ -154,6 +167,13 @@ cosign-sign:
       echo "Verifying provenance attestation round-trip..."
       cosign verify-attestation \
         --type slsaprovenance \
+        --certificate-identity-regexp "$CERT_IDENTITY" \
+        --certificate-oidc-issuer "$CERT_ISSUER" \
+        "$IMAGE_REF" > /dev/null
+
+      echo "Verifying OpenVEX attestation round-trip..."
+      cosign verify-attestation \
+        --type openvex \
         --certificate-identity-regexp "$CERT_IDENTITY" \
         --certificate-oidc-issuer "$CERT_ISSUER" \
         "$IMAGE_REF" > /dev/null

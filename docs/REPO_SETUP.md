@@ -150,12 +150,12 @@ the `make` target(s) that drive it.
 | Shell lint     | [shellcheck](https://www.shellcheck.net/) (via `shellcheck-py`) | `shell-check`                     | (none; defaults)                         |
 | Dockerfile lint| [hadolint](https://github.com/hadolint/hadolint) (via Docker) | `dockerfile-check`                | `.hadolint.yaml` (optional)              |
 | Tests          | [pytest](https://docs.pytest.org/) + `pytest-cov` | `test`, `test-cov`                | `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
-| Dep audit      | [pip-audit](https://pypi.org/project/pip-audit/) | `audit`                           | `PIP_AUDIT_IGNORE` in `Makefile`         |
+| Dep audit      | [pip-audit](https://pypi.org/project/pip-audit/) | `audit`                           | suppressions from `openvex.json` via `scripts/pip_audit_ignores_from_vex.py` |
 | Secret scan    | [gitleaks](https://github.com/gitleaks/gitleaks) | `find-secrets`                    | `.gitleaks.toml`                         |
-| Vuln scan      | [trivy](https://github.com/aquasecurity/trivy) (fs + image) | `trivy`, `trivy-full`, `trivy-image`, `sbom` | `trivy.yaml`, `.trivyignore` &nbsp; — &nbsp; **docs:** [`docs/security/scanning.md`](security/scanning.md) |
-| Image sign     | [cosign](https://docs.sigstore.dev/cosign/) (Sigstore, keyless) | `verify-image` | `.gitlab/ci/sign.yml`, `scripts/verify_image.py` &nbsp; — &nbsp; **docs:** [`docs/security/sigstore.md`](security/sigstore.md) |
-| Commit sign    | [gitsign](https://docs.sigstore.dev/cosign/signing/gitsign/) (Sigstore, keyless) | (CI release commits)              | `.gitlab/ci/release.yml`, `scripts/release.sh` &nbsp; — &nbsp; **docs:** [`docs/security/sigstore.md`](security/sigstore.md) |
-| Sec. policy    | `SECURITY.md` + `CODEOWNERS`  | (reviewer-gated)                  | `SECURITY.md`, `CODEOWNERS` &nbsp; — &nbsp; **docs:** [`docs/security/policy.md`](security/policy.md) |
+| Vuln scan      | [trivy](https://github.com/aquasecurity/trivy) (fs + image) | `trivy`, `trivy-full`, `trivy-image`, `sbom` | `trivy.yaml`, `openvex.json` -> **docs:** [`docs/security/scanning.md`](security/scanning.md) |
+| Image sign     | [cosign](https://docs.sigstore.dev/cosign/) (Sigstore, keyless) | `verify-image` | `.gitlab/ci/sign.yml`, `scripts/verify_image.py` -> **docs:** [`docs/security/sigstore.md`](security/sigstore.md) |
+| Commit sign    | [gitsign](https://docs.sigstore.dev/cosign/signing/gitsign/) (Sigstore, keyless) | (CI release commits)              | `.gitlab/ci/release.yml`, `scripts/release.sh` -> **docs:** [`docs/security/sigstore.md`](security/sigstore.md) |
+| Sec. policy    | `SECURITY.md` + `CODEOWNERS`  | (reviewer-gated)                  | `SECURITY.md`, `CODEOWNERS` -> **docs:** [`docs/security/policy.md`](security/policy.md) |
 | Pre-commit     | [pre-commit](https://pre-commit.com/) | `pre-commit-install`              | `.pre-commit-config.yaml`                |
 | Commit style   | [commitizen](https://commitizen-tools.github.io/commitizen/) | (commit-msg hook)                 | `[tool.commitizen]`                      |
 | Releases       | [python-semantic-release](https://python-semantic-release.readthedocs.io/) | `scripts/release.sh` (CI)         | `[tool.semantic_release]`                |
@@ -207,7 +207,7 @@ template bootstrap and stay with your project forever.
 | File                                                        | Covers                                                                                                       |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | [`docs/security/README.md`](security/README.md)             | Overview, threat model, layered-defence diagram, "I just want to verify a release" cheat-sheet.              |
-| [`docs/security/scanning.md`](security/scanning.md)         | Trivy 4-tier scan model, `pip-audit`, gitleaks, SBOM, the `.trivyignore` justification + expiry policy.       |
+| [`docs/security/scanning.md`](security/scanning.md)         | Trivy 4-tier scan model, `pip-audit`, gitleaks, SBOM, the OpenVEX justification + freshness policy.            |
 | [`docs/security/sigstore.md`](security/sigstore.md)         | Sigstore signing (`cosign` image + `cosign attest --type vuln` + `gitsign` release commits), verification, and how to operate this with **private artifacts** (self-hosted Sigstore / key-based fallback). |
 | [`docs/security/policy.md`](security/policy.md)             | `SECURITY.md` (vulnerability disclosure), `CODEOWNERS` (reviewer gating), CI / runner hardening (`CI_JOB_TOKEN` scope, protected branches/tags). |
 

@@ -1,24 +1,27 @@
 # Sigstore signing (cosign + gitsign)
 
-This template signs **three things**, all rooted in
+This template signs **six things**, all rooted in
 [Sigstore](https://www.sigstore.dev/), all anchored to the same CI
 OIDC identity:
 
 ```text
 CI job OIDC identity (issued by GitLab to a specific job on the
                        default branch of this specific project)
-  ├─ signs the release commit + tag           ← gitsign
-  ├─ signs the released image manifest        ← cosign sign
-  └─ signs the vuln-scan claim for that image ← cosign attest --type vuln
+  ├─ signs the release commit + tag                        ← gitsign
+  ├─ signs the released image manifest                     ← cosign sign
+  ├─ signs the vuln-scan claim for that image              ← cosign attest --type vuln
+  ├─ signs the image SBOM                                  ← cosign attest --type spdx
+  ├─ signs the SLSA build provenance                       ← cosign attest --type slsaprovenance
+  └─ signs the OpenVEX accepted-risk document              ← cosign attest --type openvex
 ```
 
-An auditor verifies all three with the **same identity regex** and
+An auditor verifies all six with the **same identity regex** and
 gets a single, consistent trust statement: *"signed by this project's
 CI on the default branch."*
 
 | Wired in                                                                | What it does                                                                                                          |
 | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| [`.gitlab/ci/sign.yml`](../../.gitlab/ci/sign.yml)                      | `cosign sign` (image) + `cosign attest --type vuln` (scan) + round-trip verification                                  |
+| [`.gitlab/ci/sign.yml`](../../.gitlab/ci/sign.yml)                      | `cosign sign` (image) + 4× `cosign attest` (vuln, spdx, slsa, openvex) + round-trip verification                       |
 | [`.gitlab/ci/release.yml`](../../.gitlab/ci/release.yml)                | `id_tokens: SIGSTORE_ID_TOKEN: aud: sigstore` + `GITSIGN_VERSION` pin                                                  |
 | [`scripts/release.sh`](../../scripts/release.sh)                        | Installs gitsign on actual releases, configures git for x509 signing                                                  |
 | [`scripts/verify_image.py`](../../scripts/verify_image.py)              | `pyproject.toml`-driven `cosign verify` helper (host- or project-anchored)                                            |
@@ -94,7 +97,7 @@ gated on both via `needs:`. A failing build or scan means the image is
 in the registry but **unsigned** — and any verifier (including
 `make verify-image`) rejects unsigned images.
 
-Four signing operations happen in the same job:
+Five signing operations happen in the same job:
 
 1. **`cosign sign`** the image by digest (not tag — tags can be
    re-pushed, digests can't):
@@ -142,18 +145,37 @@ Four signing operations happen in the same job:
    Same idea —> buildx attached SLSA `mode=max` provenance as a
    referrer; the `docker:` job extracts it (`--format '{{json.Provenance.SLSA}}'`); the `cosign-sign:` job signs it.
 
+5. **`cosign attest --type openvex`** this project's accepted-risk
+   triage document:
+
+   ```bash
+   cosign attest --yes \
+     --predicate openvex.json \
+     --type openvex \
+     "registry.example.com/foo/bar@sha256:..."
+   ```
+
+   The same file Trivy consumed via `--vex` during the strict scan is
+   signed here. Downstream consumers can now verify the triage
+   rationale came from this project's CI — *"yes, our scan was clean,
+   here's the list of CVEs we explicitly accepted and why"* — without
+   trusting a copy of the JSON they pulled from your repo (an attacker
+   with repo-write could otherwise rewrite it). See
+   [`scanning.md` → The OpenVEX accepted-risk policy](scanning.md#the-openvex-accepted-risk-policy)
+   for what the document itself contains.
+
 Each attestation is its own DSSE envelope with its own Fulcio cert
 and Rekor entry, they're independent claims and the verifier
 checks them independently.
 
-The job ends with a round-trip `cosign verify` + four `cosign verify-
+The job ends with a round-trip `cosign verify` + five `cosign verify-
 attestation` calls so any misconfigured signature or attestation
 trips the pipeline rather than producing a quietly-unverifiable
 release.
 
 ### What's signed, and what each signature buys you
 
-A released image carries four artifacts rooted at the same image
+A released image carries five artifacts rooted at the same image
 digest, all cosign-signed:
 
 | Artifact                                  | Predicate source                                            | How to verify                                          |
@@ -162,6 +184,7 @@ digest, all cosign-signed:
 | Vuln-scan attestation                     | `trivy image --format cosign-vuln` (`trivy-image:` job)     | `cosign verify-attestation --type vuln`                |
 | SBOM attestation (SPDX)                   | `buildx --sbom=true` → extracted in `docker:`               | `cosign verify-attestation --type spdx`                |
 | SLSA provenance attestation (`mode=max`)  | `buildx --provenance=mode=max` → extracted in `docker:`     | `cosign verify-attestation --type slsaprovenance`      |
+| OpenVEX accepted-risk attestation         | `openvex.json` at the repo root (checked into repo)         | `cosign verify-attestation --type openvex`             |
 
 **What each artifact actually contains** (so the rest of this
 section makes sense):
@@ -179,8 +202,13 @@ section makes sense):
 - **SLSA provenance** — the build recipe: git commit + repo URL,
   Dockerfile, base image digests, every package downloaded during the
   build with its hash. Effectively, *"how was this image made?"*.
+- **OpenVEX document** — every CVE this project has explicitly
+  triaged, the status (`not_affected` / `affected` / `fixed` / `under_
+  investigation`), a controlled-vocab justification, and a free-text
+  impact statement. Effectively, *"these are the findings we know
+  about and our reasoned stance on each"*.
 
-The image manifest *is* the image; the other three are claims
+The image manifest *is* the image; the other four are claims
 *about* the image, attached in the registry as separate manifests
 linked via OCI 1.1 referrers.
 
@@ -192,6 +220,7 @@ linked via OCI 1.1 referrers.
 | Vuln-scan attestation         | "Trivy, in this CI job, scanned image `@abc` at time `T` and saw these results."                 | Audit retroactively without trusting CI logs: *"did the release-time scan know about CVE-2026-X?"*. Compliance evidence (SLSA, CRA).|
 | SBOM attestation              | "This is the component inventory of image `@abc` at release time."                               | Re-scan past releases against tomorrow's CVE database without re-pulling images. License-compliance reports. *"Using log4j?"*.      |
 | SLSA provenance attestation   | "Image `@abc` was built from commit `XYZ` using build config `Z` with these materials."          | Forensics after a breach: was the Dockerfile modified? Did a malicious `RUN curl evil.com` get added? SLSA L3 compliance.           |
+| OpenVEX attestation           | "These are the CVEs *this project* has triaged for image `@abc`, with controlled-vocab justifications and impact statements."| Auto-filter scanner noise downstream (Kyverno, admission controllers); see a signed audit trail for procurement / regulator review.|
 
 In general, signing buys you four things — true for every artifact
 in the table above:
@@ -238,7 +267,8 @@ image @ sha256:abc...
 ├─ cosign image signature                                     ← NEW (signs the image bits)
 ├─ cosign --type vuln attestation (signed)                   ← NEW (the Trivy scan)
 ├─ cosign --type spdx attestation (signed)                   ← NEW, same SBOM content as the buildx one, wrapped in DSSE + signed
-└─ cosign --type slsaprovenance attestation (signed)         ← NEW, same provenance content, wrapped in DSSE + signed
+├─ cosign --type slsaprovenance attestation (signed)         ← NEW, same provenance content, wrapped in DSSE + signed
+└─ cosign --type openvex attestation (signed)                ← NEW (the accepted-risk document)
 ```
 
 So there really are two SBOMs (identical content; one unsigned, one
@@ -288,13 +318,13 @@ If your organisation mandates [notation](https://notaryproject.dev/)
 image and script. The `docker:` job is unchanged; the build / push /
 SBOM / provenance flow doesn't depend on which signer you use.
 
-The vuln-attestation step (`cosign attest --type vuln`) doesn't have
-a direct equivalent in every signer — notation, for instance, doesn't
-yet have a stable predicate-attachment story. If you need both
-signing portability and signed vuln attestations, two pragmatic
-options: keep cosign just for the attestation (it composes fine with
-a non-cosign image signature), or attach the scan as a sidecar OCI
-artifact and document the verification flow.
+The attestation steps (`cosign attest --type vuln/spdx/slsaprovenance/openvex`)
+don't have direct equivalents in every signer — notation, for
+instance, doesn't yet have a stable predicate-attachment story. If
+you need both signing portability and signed attestations, two
+pragmatic options: keep cosign just for the attestations (it composes
+fine with a non-cosign image signature), or attach each predicate as
+a sidecar OCI artifact and document the verification flow.
 
 ---
 
@@ -448,7 +478,7 @@ Two pragmatic alternatives:
 
 ### Quick reference
 
-You have five independent signed claims to check. All five use the
+You have six independent signed claims to check. All six use the
 **same identity regex + OIDC issuer**, so an admission controller can
 reuse one trust policy across them.
 
@@ -482,20 +512,27 @@ cosign verify-attestation --type slsaprovenance \
   --certificate-oidc-issuer    "$ISSUER" \
   "$IMG"
 
-# 5. Release commit / tag
+# 5. OpenVEX accepted-risk attestation
+cosign verify-attestation --type openvex \
+  --certificate-identity-regexp "$IDENTITY" \
+  --certificate-oidc-issuer    "$ISSUER" \
+  "$IMG"
+
+# 6. Release commit / tag
 gitsign verify \
   --certificate-identity-regexp "$IDENTITY" \
   --certificate-oidc-issuer    "$ISSUER" \
   "$TAG"
 ```
 
-If any of the five fails, treat the release as untrusted. In practice
+If any of the six fails, treat the release as untrusted. In practice
 the image-manifest signature + the commit signature are the
-must-check ones; the three attestations are post-release auditing
+must-check ones; the four attestations are post-release auditing
 (`"what was in this build?"`, `"how was it built?"`, `"was it clean
-at release time?"`). Admission controllers typically gate on (1)
-alone, since failing the others doesn't mean the image is malicious —
-just that some specific attestation didn't make it.
+at release time?"`, `"what did we triage and why?"`). Admission
+controllers typically gate on (1) alone, since failing the others
+doesn't mean the image is malicious — just that some specific
+attestation didn't make it.
 
 ### Image verification: `make verify-image`
 

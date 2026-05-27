@@ -15,8 +15,9 @@ CVE drops.
 
 This file documents how all of them fit together, the noise-mitigation
 strategy (no scanner is useful if the team has trained itself to ignore
-its output), and the `.trivyignore` policy that keeps suppression
-deliberate rather than convenient.
+its output), and the **OpenVEX policy** that keeps suppression
+deliberate rather than convenient — one machine-readable, scanner-
+portable, signed document shared by every gate above.
 
 ## Quick reference
 
@@ -26,9 +27,9 @@ deliberate rather than convenient.
 | Scan for secrets locally                      | `make find-secrets`                       |
 | Strict Trivy fs scan (CI equivalent)          | `make trivy`                              |
 | Broad Trivy fs scan (everything)              | `make trivy-full`                         |
-| Trivy scan of a built image                   | `make trivy-image IMAGE=<ref>`            |
+| Trivy scan of this project's Docker image     | `make trivy-image` (builds, then scans)   |
 | Produce a fresh SBOM                          | `make sbom` → `sbom.cdx.json`             |
-| Verify `.trivyignore` policy compliance       | `make trivyignore-check`                  |
+| Verify the OpenVEX policy compliance          | `make vex-check`                          |
 
 ---
 
@@ -38,10 +39,15 @@ Runs against runtime dependencies declared in `pyproject.toml` /
 `uv.lock`. Uses the PyPA-curated advisory database (so Python-specific
 context, not raw NVD), and is **blocking** in both pre-commit and CI.
 
-Configuration: `PIP_AUDIT_IGNORE` in [`Makefile`](../../Makefile) holds
-the small allowlist of accepted vulnerabilities (one entry today —
-`PYSEC-2022-42969` — with the rationale inline). Add new entries with
-`--ignore-vuln <ID>` and a comment explaining *why*.
+Configuration: suppressions are **not** in the Makefile. They live in
+the shared OpenVEX document
+([`openvex.json`](../../openvex.json)) at the repo root and are
+translated into `--ignore-vuln <ID>` flags at `make audit` time by
+[`scripts/pip_audit_ignores_from_vex.py`](../../scripts/pip_audit_ignores_from_vex.py).
+See the [OpenVEX section](#the-openvex-accepted-risk-policy) below
+for the authoring policy. The shim disappears the day `pip-audit`
+adopts native VEX support
+([upstream issue](https://github.com/pypa/pip-audit/issues/231)).
 
 Why `pip-audit` despite also having Trivy: it runs without Docker,
 uses a Python-specific DB (lower false-positive rate for PyPI deps
@@ -83,7 +89,9 @@ response, that is, accepting the noise, gradually leads everyone to ignore
 the scan output entirely.
 
 The template addresses this with a **four-tier scan model** plus a
-**suppressions file with mandatory justification and expiry**.
+**single OpenVEX document** that every tier consumes for triage
+decisions — controlled-vocab justification, mandatory impact
+statement, enforced freshness window.
 
 ### Tier 1: strict fs scan (blocking)
 
@@ -104,17 +112,18 @@ team stops reading scanner output when every release has 47 findings.
 
 - **CI job:** `trivy-full-report:` in `security.yml`.
 - **Local:** `make trivy-full`.
-- **Driven by:** *not* `trivy.yaml` (uses `--config-file /dev/null`).
+- **Driven by:** CLI flags on the `make trivy-full` / `trivy-full-report:` command
+  (override `trivy.yaml`'s HIGH/CRITICAL + runtime-only scope).
 - **Policy:**
   - All severities (LOW + MEDIUM + HIGH + CRITICAL)
-  - Dev dependencies included
+  - Dev dependencies included (`--include-dev-deps`)
   - `allow_failure: true` in CI / `--exit-code 0` locally → **never
     blocks**, surfaces as a yellow warning in the pipeline UI
 
 Surfaces what the strict scan filters out so you can triage
-proactively (renovate-bump it, or `.trivyignore` it with an expiry)
-rather than discovering it the day a previously-LOW finding gets
-escalated to HIGH.
+proactively (renovate-bump it, or add a VEX statement with the right
+justification) rather than discovering it the day a previously-LOW
+finding gets escalated to HIGH.
 
 ### Tier 3: SBOM artifact
 
@@ -140,10 +149,13 @@ increasingly require.
 ### Tier 4: image scan (post-build, blocking)
 
 - **CI job:** `trivy-image:` in [`.gitlab/ci/image-scan.yml`](../../.gitlab/ci/image-scan.yml).
-- **Local:** `make trivy-image IMAGE=<ref>`.
+- **Local:** `make trivy-image` —> runs
+  [`scripts/trivy_image_local.py`](../../scripts/trivy_image_local.py),
+  which `docker build`s this project's image (tagged
+  `<project>-trivy-scan:local`) and scans it with the same OpenVEX policy.
 - **Scope:** the **built Docker image** — base-image OS packages,
   bytecode artifacts, anything resolved at `docker build` time.
-- **Policy:** HIGH + CRITICAL only, same `.trivyignore`, **blocks**
+- **Policy:** HIGH + CRITICAL only, same OpenVEX document, **blocks**
   signing via `needs:` (a failing scan stops `cosign-sign:` from
   running; the image is in the registry but unsigned, so `cosign
   verify` rejects it).
@@ -179,34 +191,138 @@ CI does.
 
 ---
 
-## `.trivyignore`: accepted-risk policy
+## The OpenVEX accepted-risk policy
 
-Triaged-but-accepted CVEs live in [`.trivyignore`](../../.trivyignore)
-at the repo root. The format and policy are enforced mechanically:
+Triaged-but-accepted CVEs live in a single
+[OpenVEX](https://github.com/openvex/spec) document at the repo root,
+[`openvex.json`](../../openvex.json). Every scanner in the pipeline
+reads from the same file:
 
-```text
-# Justification: <why this is acceptable in our context>
-CVE-2024-12345 exp:2026-06-30
+- **Trivy** (fs + image) consumes it natively via `--vex openvex.json`.
+  See the [Trivy VEX docs](https://trivy.dev/docs/latest/supply-chain/vex/).
+- **pip-audit** — which does not yet support VEX natively
+  ([upstream issue](https://github.com/pypa/pip-audit/issues/231)) —
+  reads the same file through a small stdlib shim
+  ([`scripts/pip_audit_ignores_from_vex.py`](../../scripts/pip_audit_ignores_from_vex.py))
+  that translates filterable statements into `--ignore-vuln <ID>`
+  flags.
+- **cosign** signs the document on release as a fifth attestation
+  alongside the image, vuln scan, SBOM, and SLSA provenance —
+  `cosign attest --type openvex` in
+  [`.gitlab/ci/sign.yml`](../../.gitlab/ci/sign.yml). Downstream
+  consumers can verify the triage came from this project's CI rather
+  than a tampered mirror.
+
+One source of truth, one CVE budget, one signed artifact.
+
+### Document shape
+
+```json
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://openvex.dev/docs/public/vex-<your-id>",
+  "author": "Project Maintainers",
+  "timestamp": "2026-05-26T00:00:00Z",
+  "version": 1,
+  "statements": [
+    {
+      "vulnerability": {
+        "name": "CVE-2024-12345",
+        "aliases": ["PYSEC-2024-12345", "GHSA-..."]
+      },
+      "products": [
+        { "@id": "pkg:pypi/<package>" }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "What makes this CVE non-applicable HERE (not in the abstract).",
+      "timestamp": "2026-05-26T00:00:00Z",
+      "last_updated": "2026-05-26T00:00:00Z"
+    }
+  ]
+}
 ```
 
-The expiry mechanism (`exp:YYYY-MM-DD`) is **enforced by Trivy itself**:
-past that date, the CVE reappears in scan output. The other half of
-the policy — *every entry must carry a justification comment on the
-preceding non-empty line* — is enforced by
-[`scripts/check_trivyignore.py`](../../scripts/check_trivyignore.py),
-wired into pre-commit as the `trivyignore-check` hook and into
-`make trivyignore-check` so CI catches it too.
+Status values (from the OpenVEX spec):
 
-The checker rejects:
+- `not_affected` — vuln does not impact this product; finding is
+  filtered out of scan results. Requires `justification` +
+  `impact_statement`.
+- `affected` — vuln does impact this product; finding stays in scan
+  output. Requires `action_statement` describing planned remediation.
+- `fixed` — was affected, now patched. Finding is filtered out for
+  this version onwards.
+- `under_investigation` — triage in progress; finding stays in scan
+  output.
 
-- Entries without an `exp:YYYY-MM-DD` suffix
-- Entries where the preceding non-empty line is **not** a `#` comment
-- Malformed CVE / GHSA IDs or unparsable dates
+Justification controlled vocabulary (for `status: not_affected`):
 
-**Six months** is the suggested default expiry — long enough that
-you're not re-triaging every sprint, short enough that abandoned
-advisories don't silently accumulate. The checker prints a suggested
-expiry date in its error output to make adding a compliant entry fast.
+- `component_not_present`
+- `vulnerable_code_not_present`
+- `vulnerable_code_not_in_execute_path`
+- `vulnerable_code_cannot_be_controlled_by_adversary`
+- `inline_mitigations_already_exist`
+
+Pick the one that best fits and explain *why* in `impact_statement`.
+
+### Enforced policy
+
+Validation runs in two complementary halves so each tool does what it's
+best at — JSON Schema for structure, Python for local policy:
+
+**1. Structural — upstream OpenVEX JSON Schema**, fetched live from
+[`openvex/spec @ main`](https://raw.githubusercontent.com/openvex/spec/main/openvex_json_schema.json)
+by the
+[`check-jsonschema`](https://github.com/python-jsonschema/check-jsonschema)
+pre-commit hook (alias `vex-schema`). The fetched schema is cached
+under `~/.cache/check-jsonschema/` with ETag revalidation, so the
+network cost is a single HEAD request per run after the first fetch.
+Coverage:
+
+- Well-formed JSON, OpenVEX `@context` URI, document-level required
+  fields (`@id`, `author`, `timestamp`, `version`, `statements`),
+  `additionalProperties: false` everywhere (typos in field names are
+  rejected at commit time, not silently ignored).
+- Each statement carries a `vulnerability` object with `name` and an
+  array of unique `aliases`, plus at least one `products` entry with
+  a valid IRI `@id` or a `purl`/`cpe22`/`cpe23` identifier.
+- Enum-validated `status` (one of `not_affected` / `affected` /
+  `fixed` / `under_investigation`) and `justification` (one of the
+  five OpenVEX values).
+- Conditional rules: `not_affected` requires `justification` OR
+  `impact_statement` (we tighten this to AND — see below);
+  `affected` requires `action_statement`.
+- All timestamps must be RFC 3339 / ISO 8601 (`format: date-time`).
+
+By delegating to the upstream schema we get spec-correctness for free
+and stay in lock-step with the standard — adopters reading the OpenVEX
+docs see the same rules the linter enforces, with no project-specific
+re-interpretation in between. The trade-off: the hook needs network
+access (an airgapped CI agent can't reach
+`raw.githubusercontent.com`), and a future upstream patch lands
+automatically rather than via PR. We pin to `main` rather than a tag
+because OpenVEX's tagging predates the schema file and the
+`openvex.dev/ns/v0.2.0/openvex_json_schema.json` URL the spec docs
+suggest currently redirects to the GitHub repo HTML page rather than
+serving the schema.
+
+**2. Local-policy — [`scripts/check_vex.py`](../../scripts/check_vex.py)**
+(applied by the `vex-freshness` pre-commit hook). Covers what JSON
+Schema can't express:
+
+- **Freshness window:** every statement was re-triaged within the
+  last **180 days** (computed at check time against the statement's
+  `last_updated`, falling back to the document `timestamp`). Past
+  that, the checker fails and the statement must either be refreshed
+  (bump `last_updated` to today) or removed.
+- **Stricter `not_affected` rule:** the spec accepts `justification`
+  OR `impact_statement`; we require **both**, so project-specific
+  reasoning ("we don't import `py.path`") can't be silently dropped
+  behind a rubber-stamped controlled-vocab value.
+
+Both halves run via `make vex-check` (which CI executes as part of
+`make repo-check`) and as pre-commit hooks when the OpenVEX document
+or the local checker is staged.
 
 ### Why this matters
 
@@ -219,26 +335,20 @@ quickly:
 - A scanner upgrade reveals 30 historic ignores and the team gives
   up and ignores the whole file.
 
-The justification-plus-expiry policy forces every entry through a
-deliberate triage: *what's the threat?*, *why is it not reachable in
-our deployment?*, *when do we re-check?*. If you can't answer those
-three questions, you can't suppress the finding.
+OpenVEX forces every entry through a deliberate triage: *what's the
+threat?* (the vuln id), *why is it not reachable in our deployment?*
+(controlled-vocab justification + free-text impact statement), *when
+do we re-check?* (180-day freshness window enforced mechanically).
+If you can't answer those three questions, you can't suppress the
+finding.
 
-### When `.trivyignore` isn't enough
+### Downstream consumption
 
-For larger teams, regulated environments, or downstream consumers
-that need to see your triage rationale, migrate per-CVE justifications
-from `.trivyignore` comments into proper
-[OpenVEX](https://github.com/openvex/spec) documents. VEX statements
-are:
-
-- Machine-readable (JSON schema)
-- Scanner-portable (Trivy, Grype, Snyk all consume them)
-- The format downstream consumers (government, enterprise security
-  teams) expect
-
-`.trivyignore` is the in-repo convenience version. VEX is the
-distribution-ready version. Both can coexist.
+The `openvex.json` document is the engineer-facing source of truth,
+not the org-wide governance system. Aggregating across projects,
+publishing to a central platform (Sonatype IQ, GUAC, DependencyTrack,
+Mend, Snyk, …), and exporting to compliance formats (CSAF VEX, hosted
+VEX repository) are covered in [`vex.md`](vex.md).
 
 ---
 
@@ -273,12 +383,12 @@ Two settings worth understanding in the security context:
 
 | Layer       | If you don't need it…                                                                                                                                                                |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pip-audit` | Drop the pre-commit hook + the `audit:` CI job + the `make audit` target. Trivy fs covers the same ground (with NVD instead of PyPA — usually noisier).                              |
+| `pip-audit` | Drop the pre-commit hook + the `audit:` CI job + the `make audit` target + `scripts/pip_audit_ignores_from_vex.py`. Trivy fs covers the same ground (with NVD instead of PyPA — usually noisier) and consumes the OpenVEX document natively, so suppressions don't move.|
 | `gitleaks`  | Drop the pre-commit hook + the `gitleaks:` CI job. Strongly discouraged — even private repos leak credentials when contributors fork them.                                          |
 | Trivy fs    | Drop `trivy:` + `trivy-full-report:` + the `make trivy` / `make trivy-full` targets. Keep `pip-audit` as the dep-CVE gate. You lose IaC misconfig detection.                         |
-| Trivy image | Drop `trivy-image:`. **Also drop the `cosign attest --type vuln` step** in `sign.yml` (it depends on the cosign-vuln predicate this job emits). The signed scan claim is then gone.  |
+| Trivy image | Drop `trivy-image:`. **Also drop the `cosign attest --type vuln` step** in `sign.yml` (it depends on the cosign-vuln predicate this job emits). The signed scan claim is then gone. The `cosign attest --type openvex` step is independent and can stay.|
 | SBOM        | Drop the `sbom:` job + `make sbom`. You lose the ability to re-scan past releases against future CVEs.                                                                                |
-| `.trivyignore` policy | Drop `check_trivyignore.py` + its pre-commit hook + `make trivyignore-check`. Trivy still honours the file — you just lose the justification + expiry enforcement.        |
+| OpenVEX policy | Drop `check_vex.py` + its pre-commit hook + `make vex-check`. Trivy still honours the VEX document via `--vex` — you just lose the justification + freshness enforcement.        |
 
 Replace rather than remove if you can — almost every layer addresses a
 threat class that exists regardless of which tool catches it.

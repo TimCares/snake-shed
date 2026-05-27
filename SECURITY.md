@@ -60,9 +60,9 @@ tagged release for the strongest guarantees.
 - The official Docker image and its attestations
 - The CI/CD pipeline (`.gitlab/ci/`, `.gitlab-ci.yml`)
 - Dependency / build configuration (`pyproject.toml`, `uv.lock`,
-  `Dockerfile`, `renovate.json`, `.trivyignore`, `trivy.yaml`)
+  `Dockerfile`, `renovate.json`, `trivy.yaml`, `openvex.json`)
 - The supply-chain tooling (`scripts/verify_image.py`,
-  `scripts/check_trivyignore.py`)
+  `scripts/check_vex.py`, `scripts/pip_audit_ignores_from_vex.py`)
 
 **Out of scope**
 

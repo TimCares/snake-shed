@@ -72,8 +72,8 @@ by-project:
 [`CODEOWNERS`](../../CODEOWNERS) at the repo root maps security-
 sensitive paths to **required reviewers**. Without it, anyone with
 push rights can quietly change `Dockerfile`, `renovate.json`,
-`.trivyignore`, `.gitlab/ci/sign.yml`, etc. — i.e. the entire
-security perimeter — by piggybacking on an unrelated MR. CODEOWNERS
+the OpenVEX document, `.gitlab/ci/sign.yml`, etc.
+by piggybacking on an unrelated MR. CODEOWNERS
 ensures those paths get a second pair of eyes from someone who knows
 what to look for.
 
@@ -82,12 +82,13 @@ what to look for.
 - `.gitlab/ci/*.yml` — CI pipeline (anything here can sign / push /
   release).
 - `Dockerfile`, `docker-compose.yaml` — runtime image surface.
-- `trivy.yaml`, `.trivyignore` — vulnerability suppression policy.
+- `trivy.yaml`, `openvex.json` — vulnerability scanning config and
+  accepted-risk OpenVEX document.
 - `renovate.json` — dependency update policy.
 - `pyproject.toml` (runtime deps section) — runtime surface.
 - `scripts/release.sh`, `scripts/verify_image.py`,
-  `scripts/check_trivyignore.py` — release / verify / suppress
-  enforcement.
+  `scripts/check_vex.py`, `scripts/pip_audit_ignores_from_vex.py`
+  — release / verify / VEX enforcement / pip-audit adaption.
 - `SECURITY.md`, `CODEOWNERS` itself — policy files.
 - `docs/security/**` — this directory (so security docs don't drift
   from the implementation behind a security-team-blind merge).
@@ -238,9 +239,12 @@ how likely you are to want them:
 
 - **Signed dev commits + CI verification (gitsign levels 1+2).**
   See [`sigstore.md` → Future expansion](sigstore.md#future-expansion-levels-1-and-2).
-- **VEX statements** for downstream consumers who need machine-
-  readable triage of accepted CVEs. See
-  [`scanning.md` → When .trivyignore isn't enough](scanning.md#when-trivyignore-isnt-enough).
+- **Hosted VEX repository** for cross-project triage statements. The
+  template ships an in-repo OpenVEX document; once you operate
+  multiple projects, publish a shared remote VEX repo and point
+  Trivy at it with `--vex repo`. See [`vex.md`](vex.md) for the full
+  downstream-consumption story (aggregators, central platforms,
+  format conversion).
 - **SLSA L3 attestation** — currently emit `mode=max` provenance
   (unsigned referrer). For L3, add `cosign attest --type
   slsaprovenance` in `sign.yml` and publish the verification

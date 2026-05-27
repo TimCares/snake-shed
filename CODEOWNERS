@@ -40,11 +40,12 @@
 # --- Security policy & suppressions ---
 /SECURITY.md                   @security-team
 /CODEOWNERS                    @security-team
-/.trivyignore                  @security-team
+/openvex.json                  @security-team
 /trivy.yaml                    @security-team
 /.gitleaks.toml                @security-team
 
 # --- Release & signing tooling ---
-/scripts/release.sh            @security-team
-/scripts/verify_image.py       @security-team
-/scripts/check_trivyignore.py  @security-team
+/scripts/release.sh                       @security-team
+/scripts/verify_image.py                  @security-team
+/scripts/check_vex.py                     @security-team
+/scripts/pip_audit_ignores_from_vex.py    @security-team

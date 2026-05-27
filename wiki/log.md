@@ -6,4 +6,4 @@ On your first write, adjust the **init** date below and name it accordingly. The
 
 ---
 
-## [2026-04-15] init | Wiki bootstrapped with directory structure, templates, and metadata standard
+## [yyyy-mm-dd] init | Project initialized

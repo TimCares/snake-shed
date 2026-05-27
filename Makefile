@@ -1,12 +1,15 @@
 PY=uv
 
-
-# Vulnerabilities acknowledged and accepted (no fix available or not applicable)
-# Add an ignore with e.g. "--ignore-vuln CVE-XXXX-XXXX "
-PIP_AUDIT_IGNORE ?= --ignore-vuln PYSEC-2022-42969 # as of May 2026 no fix exists in the affected package
-
-PYTEST_ARGS ?=
-PYTEST_COV_REPORT_ARGS ?= --cov-report=xml
+# Single source of truth for accepted-risk CVEs: an OpenVEX document.
+# Trivy consumes it natively via `--vex`. `pip-audit` does not yet
+# (https://github.com/pypa/pip-audit/issues/231), so we shim it through
+# `scripts/pip_audit_ignores_from_vex.py`, which emits
+# `--ignore-vuln <ID>` flags for every `not_affected` / `fixed`
+# statement. The shim writes to stdout only; `check_vex.py` is the
+# enforcer (justification, controlled-vocab status, freshness window).
+VEX_FILE := openvex.json
+PIP_AUDIT_IGNORES := $(shell python3 scripts/pip_audit_ignores_from_vex.py)
+TRIVY_VEX_FLAG := --vex $(VEX_FILE)
 
 .DEFAULT_GOAL := help
 
@@ -126,58 +129,51 @@ repo-check:  ## [check] Run repository hygiene checks from pre-commit
 	$(PY) run pre-commit run check-executables-have-shebangs --all-files
 	$(PY) run pre-commit run check-shebang-scripts-are-executable --all-files
 	$(PY) run pre-commit run debug-statements --all-files
-	$(PY) run pre-commit run trivyignore-check --all-files
+	$(MAKE) vex-check
 
-.PHONY: trivyignore-check
-trivyignore-check:  ## [check] Enforce .trivyignore policy (justification + expiry)
-	$(PY) run pre-commit run trivyignore-check --all-files
+
+.PHONY: vex-check
+vex-check:  ## [check] Enforce OpenVEX policy (schema + local freshness 180-day window / impact_statement)
+	$(PY) run pre-commit run vex-schema --all-files
+	$(PY) run pre-commit run vex-freshness --all-files
 
 .PHONY: audit
-audit:  ## [check] Audit dependencies for known vulnerabilities
-	$(PY) run pip-audit $(PIP_AUDIT_IGNORE)
+audit:  ## [check] Audit dependencies for known vulnerabilities (VEX-suppressed)
+	$(PY) run pip-audit $(PIP_AUDIT_IGNORES)
 
 .PHONY: find-secrets
 find-secrets:  ## [check] Scan for secrets with gitleaks (uses .gitleaks.toml)
 	$(PY) run pre-commit run gitleaks --all-files
 
 .PHONY: trivy
-trivy:  ## [check] Scan for vulnerabilities with trivy (uses trivy.yaml; slow, opt-in)
-	docker run --rm -v "$(PWD):/repo" -w /repo ghcr.io/aquasecurity/trivy:latest fs .
+trivy:  ## [check] Scan for vulnerabilities with trivy (uses trivy.yaml + VEX; slow, opt-in)
+	docker run --rm -v "$(PWD):/repo" -w /repo ghcr.io/aquasecurity/trivy:latest \
+		fs $(TRIVY_VEX_FLAG) .
 
 # `trivy-full` is the informational counterpart of `trivy`: all severities,
 # dev deps included, never blocks.
 .PHONY: trivy-full
 trivy-full:  ## [check] Trivy scan at all severities incl. dev deps (informational; opt-in)
 	docker run --rm -v "$(PWD):/repo" -w /repo ghcr.io/aquasecurity/trivy:latest \
-		--config-file /dev/null fs --severity LOW,MEDIUM,HIGH,CRITICAL --exit-code 0 .
+		fs --severity LOW,MEDIUM,HIGH,CRITICAL --exit-code 0 --include-dev-deps \
+		$(TRIVY_VEX_FLAG) .
 
 # Produces sbom.cdx.json —> CycloneDX inventory of every component in the
 # repo. Mirror of the CI `sbom:` job for local use.
 .PHONY: sbom
 sbom:  ## [check] Generate a CycloneDX SBOM at sbom.cdx.json (opt-in)
 	docker run --rm -v "$(PWD):/repo" -w /repo ghcr.io/aquasecurity/trivy:latest \
-		--config-file /dev/null fs --format cyclonedx --output sbom.cdx.json --quiet .
+		fs --format cyclonedx --output sbom.cdx.json --quiet .
 
 # Image-level vuln scan. Local counterpart of the CI `trivy-image:` job.
-# Mounts `~/.docker` so trivy can use existing registry credentials, and
-# the docker socket so it can also scan locally-built (not-yet-pushed)
-# images. Socket access is root-equivalent —> only run on workstations
-# you control.
+# Builds the project image, then scans it with Trivy + `openvex.json`.
 .PHONY: trivy-image
-trivy-image:  ## [check] Vuln scan of a built Docker image. Usage: make trivy-image IMAGE=<ref>
-	@if [ -z "$(IMAGE)" ]; then \
-		echo "Usage: make trivy-image IMAGE=<registry/path>:<tag-or-digest>" >&2; \
-		exit 1; \
-	fi
-	docker run --rm \
-		-v "$(HOME)/.docker:/root/.docker:ro" \
-		-v /var/run/docker.sock:/var/run/docker.sock \
-		ghcr.io/aquasecurity/trivy:latest \
-		image --severity HIGH,CRITICAL --exit-code 1 "$(IMAGE)"
+trivy-image:  ## [check] Build this project's image and scan with trivy + openvex.json
+	$(PY) run python scripts/trivy_image_local.py
 
 # Verify a released image's Sigstore signature. Thin wrapper around
 # `scripts/verify_image.py`, which reads the platform + host from
-# `[tool.semantic_release.remote]` in pyproject.toml — no duplication of
+# `[tool.semantic_release.remote]` in pyproject.toml —> no duplication of
 # "what platform are we on" config across files. For tighter cert pinning
 # in automated gates, invoke the script directly with `--project <group/repo>`.
 .PHONY: verify-image
@@ -192,14 +188,14 @@ verify-image:  ## [check] Verify cosign signature of a released image. Usage: ma
 
 .PHONY: test
 test:  ## [check] Run tests with pytest
-	$(PY) run pytest $(PYTEST_ARGS)
+	$(PY) run pytest
 
 .PHONY: test-cov
 test-cov:  ## [check] Run tests with coverage report
-	$(PY) run pytest --cov --cov-report=term-missing $(PYTEST_COV_REPORT_ARGS) $(PYTEST_ARGS)
+	$(PY) run pytest --cov --cov-report=term-missing --cov-report=xml
 
 # `check` is the aggregate the CI pipeline and pre-commit can rely on.
-# Docker-dependent targets (`trivy`, `trivy-full`, `sbom`, `dockerfile-check`)
+# Docker-dependent targets (`trivy`, `trivy-full`, `trivy-image`, `sbom`, `dockerfile-check`)
 # are intentionally excluded so `make check` runs without a Docker daemon.
 # pre-commit's `hadolint-docker` hook covers Dockerfile linting on changes;
 # the trivy/sbom targets are opt-in and slow (vuln DB download).

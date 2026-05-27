@@ -10,7 +10,8 @@ regime changes.
 | File | Covers |
 | ---- | ------ |
 | [`README.md`](README.md) (this file) | High-level posture, threat model, the layered defence diagram, where to start. |
-| [`scanning.md`](scanning.md) | Vulnerability + secret scanning: Trivy (4 tiers), `pip-audit`, gitleaks, SBOM, the `.trivyignore` policy. |
+| [`scanning.md`](scanning.md) | Vulnerability + secret scanning: Trivy (4 tiers), `pip-audit`, gitleaks, SBOM, the OpenVEX accepted-risk policy. |
+| [`vex.md`](vex.md) | How the `openvex.json` document feeds into org-wide vulnerability governance (Sonatype IQ / GUAC / DependencyTrack / CSAF compliance exports). |
 | [`sigstore.md`](sigstore.md) | Sigstore-anchored signing for images (`cosign`) and commits (`gitsign`), how to verify, and how to operate this with **private artifacts** (self-hosted Sigstore / key-based fallback). |
 | [`policy.md`](policy.md) | Repository governance: `SECURITY.md` disclosure policy, `CODEOWNERS` review gating, CI / runner hardening (`CI_JOB_TOKEN` scope, protected branches/tags). |
 
@@ -28,7 +29,7 @@ the others still hold: "**defence in depth**".
 │  1 · Developer workstation                                          │
 │      pre-commit  →  ruff (incl. S=bandit), gitleaks, hadolint,      │
 │                     shellcheck, codespell, commitizen, ty,          │
-│                     interrogate, pytest, pip-audit, trivyignore     │
+│                     interrogate, pytest, pip-audit, OpenVEX         │
 │                     policy check                                    │
 │      pre-push    →  the full `make check` aggregate (= CI quality)  │
 └─────────────────────────────────────────────────────────────────────┘
@@ -58,11 +59,12 @@ the others still hold: "**defence in depth**".
 │                     with --sbom=true + --provenance=mode=max;       │
 │                     captures IMAGE_DIGEST; extracts SBOM +          │
 │                     provenance predicates from the registry.        │
-│      trivy-image:   scans the pushed image; emits cosign-vuln       │
-│                     predicate; blocks on HIGH/CRITICAL.             │
-│      cosign-sign:   cosign sign (image) + 3× cosign attest          │
-│                     (vuln, spdx, slsaprovenance), all anchored      │
-│                     at CI OIDC identity.                            │
+│      trivy-image:   scans the pushed image; consumes OpenVEX via    │
+│                     --vex; emits cosign-vuln predicate; blocks on   │
+│                     HIGH/CRITICAL.                                  │
+│      cosign-sign:   cosign sign (image) + 4× cosign attest          │
+│                     (vuln, spdx, slsaprovenance, openvex), all      │
+│                     anchored at CI OIDC identity.                   │
 └─────────────────────────────────────────────────────────────────────┘
                                   ↓ image + signatures in registry
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -106,6 +108,7 @@ Continuous, sitting alongside all six layers:
 | Insider sneaks a CI config change past review                           | `CODEOWNERS` + protected branches                                                                                            | [policy.md](policy.md)             |
 | Compromised dev account pushes a fake `v999.0.0` tag                    | Protected tags (Maintainer-only)                                                                                              | [policy.md](policy.md#protect-tags) |
 | Old release turns out vulnerable months later                           | Signed image-SBOM attestation + `cosign attest --type vuln` (re-checkable forever) + source-repo SBOM CI artifact            | [scanning.md](scanning.md) + [sigstore.md](sigstore.md) |
+| Downstream consumer asks *"which CVEs did you triage and on what grounds?"* | Signed `cosign attest --type openvex` document published with every release; controlled-vocab justifications; 180-day freshness window | [scanning.md](scanning.md#the-openvex-accepted-risk-policy) + [sigstore.md](sigstore.md#whats-signed-and-what-each-signature-buys-you) |
 | Researcher finds a 0-day in production                                  | `SECURITY.md` private disclosure channel                                                                                     | [policy.md](policy.md#vulnerability-disclosure-securitymd) |
 | Runtime escape via container vulnerability                              | `cap_drop: ALL` + `no-new-privileges` + non-root user + `read_only`                                                          | [`docker-compose.yaml`](../../docker-compose.yaml) |
 | CI runner exfiltrates code from sibling projects in the group           | `CI_JOB_TOKEN` scope restriction (project-level UI setting, not in code)                                                     | [policy.md](policy.md#restrict-ci_job_token-scope) |
@@ -116,7 +119,7 @@ defender only has to keep **one** intact to limit blast radius.
 
 ## "I just want to verify a release"
 
-You have five independent signed claims to check, all under the same
+You have six independent signed claims to check, all under the same
 `--certificate-identity-regexp` + `--certificate-oidc-issuer` policy,
 so an admission controller can reuse one trust policy across them.
 See [`sigstore.md`](sigstore.md#verification) for full detail and
@@ -147,16 +150,22 @@ cosign verify-attestation --type slsaprovenance \
        --certificate-identity-regexp "$IDENTITY" \
        --certificate-oidc-issuer    "$ISSUER" "$IMG"
 
-# 5. Release commit is signed by this project's CI
+# 5. OpenVEX triage statement is signed by this project's CI
+cosign verify-attestation --type openvex \
+       --certificate-identity-regexp "$IDENTITY" \
+       --certificate-oidc-issuer    "$ISSUER" "$IMG"
+
+# 6. Release commit is signed by this project's CI
 gitsign verify --certificate-identity-regexp "$IDENTITY" \
                --certificate-oidc-issuer    "$ISSUER" "$COMMIT"
 ```
 
-Five commands, one identity, one trust policy. The image-manifest
-signature (1) and the commit signature (5) are the must-check ones
-for any deployment; (2)–(4) are post-release auditing claims (*"what
-went in"*, *"how was it built"*, *"was it clean at release time"*)
-and verify-or-die admission policies typically only gate on (1).
+Six commands, one identity, one trust policy. The image-manifest
+signature (1) and the commit signature (6) are the must-check ones
+for any deployment; (2)–(5) are post-release auditing claims (*"what
+went in"*, *"how was it built"*, *"was it clean at release time"*,
+*"what did we triage and why"*) and verify-or-die admission policies
+typically only gate on (1).
 
 ## Operating this with private / internal artifacts
 
@@ -179,22 +188,24 @@ Full discussion + concrete env-var snippets for both alternatives:
 ├── base.yml          stages, .uv-base, RENOVATE skip rule
 ├── quality.yml       lint / format / type / docstring / spell / shell
 ├── test.yml          pytest + coverage
-├── security.yml      pip-audit, gitleaks, trivy fs (strict + broad), sbom
+├── security.yml      pip-audit (VEX-suppressed), gitleaks,
+│                     trivy fs (strict + broad, --vex), sbom
 ├── release.yml       semantic-release + gitsign install
 ├── docker.yml        rootless-dind buildx build + push
-├── image-scan.yml    trivy image (blocking; emits cosign-vuln)
-├── sign.yml          cosign sign + cosign attest --type vuln
+├── image-scan.yml    trivy image (blocking, --vex; emits cosign-vuln)
+├── sign.yml          cosign sign + cosign attest (vuln, spdx, slsa, openvex)
 ├── renovate.yml      scheduled Renovate runner
 └── ...
 
 scripts/
-├── release.sh             PSR + gitsign setup (CI release commit signing)
-├── verify_image.py        pyproject-driven `cosign verify` helper
-└── check_trivyignore.py   .trivyignore policy enforcer
+├── release.sh                       PSR + gitsign setup (CI release commit signing)
+├── verify_image.py                  pyproject-driven `cosign verify` helper
+├── check_vex.py                     OpenVEX policy enforcer
+└── pip_audit_ignores_from_vex.py    Shim: VEX → pip-audit `--ignore-vuln` flags
 
 repo-root/
+├── openvex.json           Single-source accepted-risk document (signed on release)
 ├── trivy.yaml             Trivy config (strict severities)
-├── .trivyignore           accepted-CVE list (justified, expiring)
 ├── .gitleaks.toml         secret scan config
 ├── SECURITY.md            disclosure policy
 ├── CODEOWNERS             reviewer gating

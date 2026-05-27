@@ -2,24 +2,25 @@
 
 from __future__ import annotations
 
-import logging
 import sys
 
-from .config import get_config
+import structlog
 
-_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
+from .config import get_config
+from .utils.logging import configure_logging
+
+logger = structlog.get_logger(__name__)
 
 
 def main() -> int:
     """Bootstrap logging, load configuration, and hand off to application code."""
-    logging.basicConfig(level=logging.INFO, format=_LOG_FORMAT)
-    log = logging.getLogger(__name__)
-
     cfg = get_config()
-    log.info(
-        "configuration loaded (my_config_field=%s, my_env=%s)",
-        cfg.my_config_field,
-        cfg.my_env,
+    configure_logging(level=cfg.logging.level, fmt=cfg.logging.format)
+
+    logger.info(
+        "configuration_loaded",
+        my_config_field=cfg.my_config_field,
+        my_env=cfg.my_env,
     )
 
     # Replace this with your application's entry point.

@@ -17,7 +17,6 @@ dependencies = [
 dev = [
     "commitizen>=4.16.2",
     "interrogate>=1.7.0",
-    "pip-audit>=2.10.0",
     "pre-commit>=4.6.0",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
@@ -35,7 +34,7 @@ override-dependencies = []
 # =============================================================================
 
 [build-system]
-requires = ["uv_build"]
+requires = ["uv-build==0.11.16"]
 build-backend = "uv_build"
 
 # Layout: this project uses the standard "src layout" (PyPA-recommended).

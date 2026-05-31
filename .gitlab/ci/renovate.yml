@@ -6,7 +6,7 @@
 #      masked, protected CI/CD variable named `RENOVATE_TOKEN`.
 #   2. CI/CD -> Schedules -> New schedule:
 #        - Description: "Renovate"
-#        - Interval pattern: e.g. `0 4 * * 1` (Mon 04:00 UTC)
+#        - Interval pattern: e.g. `0 2 * * 1` (Mon 02:00 UTC -> inside renovate window)
 #        - Target branch: your default branch
 #        - Variables: add `RENOVATE = true`
 #   3. Optional manual run: Pipelines -> Run pipeline, set `RENOVATE = true`.
@@ -16,7 +16,7 @@
 renovate:
   stage: maintenance
   image:
-    name: renovate/renovate:slim
+    name: ghcr.io/renovatebot/renovate:latest
     entrypoint: [""]
   rules:
     - if: '$RENOVATE == "true"'

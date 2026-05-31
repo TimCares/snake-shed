@@ -1,10 +1,10 @@
-format:
+format-check:
   extends: .uv-base
   stage: quality
   script:
     - make format-check
 
-lint:
+lint-check:
   extends: .uv-base
   stage: quality
   script:
@@ -16,7 +16,7 @@ type-check:
   script:
     - make type-check
 
-docstring-coverage:
+docstring-check:
   extends: .uv-base
   stage: quality
   script:
@@ -27,3 +27,29 @@ repo-check:
   stage: quality
   script:
     - make repo-check
+
+spell-check:
+  extends: .uv-base
+  stage: quality
+  script:
+    - make spell-check
+
+shell-check:
+  extends: .uv-base
+  stage: quality
+  script:
+    - make shell-check
+
+find-secrets:
+  stage: quality
+  image:
+    name: zricethezav/gitleaks:v8.30.1
+    entrypoint: [""]
+  tags:
+    - dind
+  rules:
+    - if: '$RENOVATE == "true"'
+      when: never
+    - when: on_success
+  script:
+    - gitleaks detect --source . --verbose --redact # --redact avoids leaking secrets in CI

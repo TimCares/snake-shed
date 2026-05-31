@@ -3,11 +3,11 @@
 Three independent scanners run continuously in this template, each
 covering a different blast radius:
 
-| Tool                                                                            | Looks at                                          | Where it runs                | Blocking?              |
-| ------------------------------------------------------------------------------- | ------------------------------------------------- | ---------------------------- | ---------------------- |
-| [`pip-audit`](https://pypi.org/project/pip-audit/)                              | Python runtime deps vs PyPA advisory DB           | pre-commit + CI `make audit` | **yes**                |
-| [`gitleaks`](https://github.com/gitleaks/gitleaks)                              | Secrets in the diff (pre-commit) + history (CI)   | pre-commit + CI              | **yes**                |
-| [`trivy`](https://github.com/aquasecurity/trivy) (4 tiers — see below)          | Python deps, IaC misconfig, base-image OS CVEs    | CI (+ local make targets)    | tiers 1 & 4 only       |
+| Tool                                                                            | Looks at                                          | Where it runs                  | Blocking?              |
+| ------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------ | ---------------------- |
+| [`py-audit`](https://docs.astral.sh/uv/reference/cli/#uv-audit)                | Python runtime deps vs PyPA advisory DB           | pre-commit + CI `make py-audit` | **yes**                |
+| [`gitleaks`](https://github.com/gitleaks/gitleaks)                              | Secrets in the diff (pre-commit) + history (CI)   | pre-commit + CI                | **yes**                |
+| [`trivy`](https://github.com/aquasecurity/trivy) (4 tiers — see below)          | Python deps, IaC misconfig, base-image OS CVEs    | CI (+ local make targets)      | tiers 1 & 4 only       |
 
 Plus a **CycloneDX SBOM** is produced on every CI run and kept as an
 artifact for a year, so past releases can be re-scanned against future
@@ -23,7 +23,7 @@ portable, signed document shared by every gate above.
 
 | You want to…                                  | Run                                       |
 | --------------------------------------------- | ----------------------------------------- |
-| Audit Python deps locally                     | `make audit`                              |
+| Audit Python deps locally                     | `make py-audit`                           |
 | Scan for secrets locally                      | `make find-secrets`                       |
 | Strict Trivy fs scan (CI equivalent)          | `make trivy`                              |
 | Broad Trivy fs scan (everything)              | `make trivy-full`                         |
@@ -33,7 +33,7 @@ portable, signed document shared by every gate above.
 
 ---
 
-## `pip-audit`: Python deps vs PyPA advisory DB
+## `py-audit`: Python deps vs PyPA advisory DB
 
 Runs against runtime dependencies declared in `pyproject.toml` /
 `uv.lock`. Uses the PyPA-curated advisory database (so Python-specific
@@ -42,14 +42,18 @@ context, not raw NVD), and is **blocking** in both pre-commit and CI.
 Configuration: suppressions are **not** in the Makefile. They live in
 the shared OpenVEX document
 ([`openvex.json`](../../openvex.json)) at the repo root and are
-translated into `--ignore-vuln <ID>` flags at `make audit` time by
-[`scripts/pip_audit_ignores_from_vex.py`](../../scripts/pip_audit_ignores_from_vex.py).
+translated into `--ignore <ID>` flags at `make py-audit` time by
+[`scripts/py_audit_ignores_from_vex.py`](../../scripts/py_audit_ignores_from_vex.py).
 See the [OpenVEX section](#the-openvex-accepted-risk-policy) below
-for the authoring policy. The shim disappears the day `pip-audit`
-adopts native VEX support
-([upstream issue](https://github.com/pypa/pip-audit/issues/231)).
+for the authoring policy. The shim disappears the day `uv audit`
+adopts native VEX support.
 
-Why `pip-audit` despite also having Trivy: it runs without Docker,
+This is intentionally unconditional: OpenVEX says whether this product
+is affected. `uv audit --ignore-until-fixed` follows a different rule
+("report again once the advisory DB knows a fix"), which does not match
+either `not_affected` or `fixed`.
+
+Why `py-audit` despite also having Trivy: it runs without Docker,
 uses a Python-specific DB (lower false-positive rate for PyPI deps
 than Trivy's NVD lens), and finishes in under a second — cheap enough
 to land in `make check` and the pre-push hook without slowing
@@ -184,7 +188,7 @@ never blocks gets ignored entirely. The split keeps:
 - The **dual scope** (fs vs image) so the supply-chain attack surface
   on either side is covered.
 
-`pip-audit` is a *fifth*, lighter-weight gate covering the same
+`py-audit` is a *fifth*, lighter-weight gate covering the same
 runtime-deps slice as tier 1 but without Docker — belt and braces,
 and it runs in `make check` so the pre-push hook catches it before
 CI does.
@@ -200,11 +204,10 @@ reads from the same file:
 
 - **Trivy** (fs + image) consumes it natively via `--vex openvex.json`.
   See the [Trivy VEX docs](https://trivy.dev/docs/latest/supply-chain/vex/).
-- **pip-audit** — which does not yet support VEX natively
-  ([upstream issue](https://github.com/pypa/pip-audit/issues/231)) —
+- **py-audit (uv audit)** — which does not yet support VEX natively —
   reads the same file through a small stdlib shim
-  ([`scripts/pip_audit_ignores_from_vex.py`](../../scripts/pip_audit_ignores_from_vex.py))
-  that translates filterable statements into `--ignore-vuln <ID>`
+  ([`scripts/py_audit_ignores_from_vex.py`](../../scripts/py_audit_ignores_from_vex.py))
+  that translates filterable statements into `--ignore <ID>`
   flags.
 - **cosign** signs the document on release as a fifth attestation
   alongside the image, vuln scan, SBOM, and SLSA provenance —
@@ -383,9 +386,9 @@ Two settings worth understanding in the security context:
 
 | Layer       | If you don't need it…                                                                                                                                                                |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pip-audit` | Drop the pre-commit hook + the `audit:` CI job + the `make audit` target + `scripts/pip_audit_ignores_from_vex.py`. Trivy fs covers the same ground (with NVD instead of PyPA — usually noisier) and consumes the OpenVEX document natively, so suppressions don't move.|
+| `py-audit`  | Drop the pre-commit hook + the `py-audit:` CI job + the `make py-audit` target + `scripts/py_audit_ignores_from_vex.py`. Trivy fs covers the same ground (with NVD instead of PyPA — usually noisier) and consumes the OpenVEX document natively, so suppressions don't move.|
 | `gitleaks`  | Drop the pre-commit hook + the `gitleaks:` CI job. Strongly discouraged — even private repos leak credentials when contributors fork them.                                          |
-| Trivy fs    | Drop `trivy:` + `trivy-full-report:` + the `make trivy` / `make trivy-full` targets. Keep `pip-audit` as the dep-CVE gate. You lose IaC misconfig detection.                         |
+| Trivy fs    | Drop `trivy:` + `trivy-full-report:` + the `make trivy` / `make trivy-full` targets. Keep `py-audit` as the dep-CVE gate. You lose IaC misconfig detection.                         |
 | Trivy image | Drop `trivy-image:`. **Also drop the `cosign attest --type vuln` step** in `sign.yml` (it depends on the cosign-vuln predicate this job emits). The signed scan claim is then gone. The `cosign attest --type openvex` step is independent and can stay.|
 | SBOM        | Drop the `sbom:` job + `make sbom`. You lose the ability to re-scan past releases against future CVEs.                                                                                |
 | OpenVEX policy | Drop `check_vex.py` + its pre-commit hook + `make vex-check`. Trivy still honours the VEX document via `--vex` — you just lose the justification + freshness enforcement.        |

@@ -86,9 +86,9 @@ what to look for.
   accepted-risk OpenVEX document.
 - `renovate.json` — dependency update policy.
 - `pyproject.toml` (runtime deps section) — runtime surface.
-- `scripts/release.sh`, `scripts/verify_image.py`,
-  `scripts/check_vex.py`, `scripts/pip_audit_ignores_from_vex.py`
-  — release / verify / VEX enforcement / pip-audit adaption.
+- `scripts/verify_image.py`, `scripts/check_vex.py`,
+  `scripts/py_audit_ignores_from_vex.py` — verify / VEX enforcement /
+  py-audit adaption.
 - `SECURITY.md`, `CODEOWNERS` itself — policy files.
 - `docs/security/**` — this directory (so security docs don't drift
   from the implementation behind a security-team-blind merge).
@@ -245,10 +245,6 @@ how likely you are to want them:
   Trivy at it with `--vex repo`. See [`vex.md`](vex.md) for the full
   downstream-consumption story (aggregators, central platforms,
   format conversion).
-- **SLSA L3 attestation** — currently emit `mode=max` provenance
-  (unsigned referrer). For L3, add `cosign attest --type
-  slsaprovenance` in `sign.yml` and publish the verification
-  identity. See [`sigstore.md` → What's signed](sigstore.md#whats-signed-and-what-each-signature-buys-you).
 - **Federated identity / org-wide OIDC scoping.** If you operate
   multiple GitLab groups under one organisation, use Sigstore's
   identity regex to enforce "any commit / image signed by anyone
@@ -256,4 +252,4 @@ how likely you are to want them:
 - **Hardware-attested OIDC** via WebAuthn / passkey for the IdP
   itself, so every CI-job OIDC token traces back to a human tap.
   Configurable on every major IdP. See
-  [`sigstore.md` → Hardware-backed identity](sigstore.md#hardware-backed-identity-yubikey-webauthn).
+  [`sigstore.md` -> Hardware-backed identity](sigstore.md#hardware-backed-identity-yubikey-webauthn).

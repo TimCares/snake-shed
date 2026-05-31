@@ -19,14 +19,6 @@ An auditor verifies all six with the **same identity regex** and
 gets a single, consistent trust statement: *"signed by this project's
 CI on the default branch."*
 
-| Wired in                                                                | What it does                                                                                                          |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| [`.gitlab/ci/sign.yml`](../../.gitlab/ci/sign.yml)                      | `cosign sign` (image) + 4× `cosign attest` (vuln, spdx, slsa, openvex) + round-trip verification                       |
-| [`.gitlab/ci/release.yml`](../../.gitlab/ci/release.yml)                | `id_tokens: SIGSTORE_ID_TOKEN: aud: sigstore` + `GITSIGN_VERSION` pin                                                  |
-| [`scripts/release.sh`](../../scripts/release.sh)                        | Installs gitsign on actual releases, configures git for x509 signing                                                  |
-| [`scripts/verify_image.py`](../../scripts/verify_image.py)              | `pyproject.toml`-driven `cosign verify` helper (host- or project-anchored)                                            |
-| [`Makefile`](../../Makefile) (`verify-image`)                           | One-shot local verification of a signed image                                                                          |
-
 ## Why Sigstore
 
 The traditional alternative is **key-based signing**: generate a long-
@@ -128,8 +120,9 @@ Five signing operations happen in the same job:
      "registry.example.com/foo/bar@sha256:..."
    ```
 
-   `image-sbom.spdx.json` is the SPDX SBOM that buildx already
-   attached as an unsigned OCI 1.1 referrer; the `docker:` job
+  `image-sbom.spdx.json` is the SPDX SBOM that buildx already
+  attached as an unsigned BuildKit attestation manifest on the
+  pushed image index; the `docker:` job
    extracts it back into a file (via `docker buildx imagetools inspect --format '{{json .SBOM.SPDX}}'`) and the `cosign-sign:`
    job wraps it in a signed in-toto envelope.
 
@@ -142,8 +135,9 @@ Five signing operations happen in the same job:
      "registry.example.com/foo/bar@sha256:..."
    ```
 
-   Same idea —> buildx attached SLSA `mode=max` provenance as a
-   referrer; the `docker:` job extracts it (`--format '{{json.Provenance.SLSA}}'`); the `cosign-sign:` job signs it.
+  Same idea —> buildx attached SLSA `mode=max` provenance as an
+  unsigned BuildKit attestation manifest on the pushed image index;
+  the `docker:` job extracts it (`--format '{{json.Provenance.SLSA}}'`); the `cosign-sign:` job signs it.
 
 5. **`cosign attest --type openvex`** this project's accepted-risk
    triage document:
@@ -209,8 +203,10 @@ section makes sense):
   about and our reasoned stance on each"*.
 
 The image manifest *is* the image; the other four are claims
-*about* the image, attached in the registry as separate manifests
-linked via OCI 1.1 referrers.
+*about* the image, attached in the registry as separate manifests.
+In this template, buildx first publishes unsigned BuildKit attestation
+manifests on the pushed image index; `cosign-sign:` then publishes
+signed OCI referrers for the same logical claims.
 
 **What signing each one buys you specifically:**
 
@@ -240,7 +236,7 @@ the registry are what they are), but **no authenticity** — anyone
 with registry-write could have placed it there, including an
 attacker who compromised the registry.
 
-### Two storage paths: signed cosign attestations + unsigned buildx referrers
+### Two storage paths: signed cosign referrers + unsigned buildx attestation manifests
 
 After the pipeline runs, the registry contains **two copies** of the
 SBOM and **two copies** of the SLSA provenance — same content,
@@ -251,8 +247,8 @@ different signing status. This is intentional. Walkthrough:
 
 ```text
 image @ sha256:abc... (unsigned image)
-├─ buildx-attached SBOM (no signature)             ← written by buildx, OCI 1.1 referrer
-└─ buildx-attached SLSA provenance (no signature)  ← written by buildx, OCI 1.1 referrer
+├─ buildx-attached SBOM (no signature)             ← written by buildx as an index-attached attestation manifest
+└─ buildx-attached SLSA provenance (no signature)  ← written by buildx as an index-attached attestation manifest
 ```
 
 (`trivy-image:` then produces `cosign-vuln.json` as a CI artifact,
@@ -276,17 +272,21 @@ signed) and two provenance docs (same). The buildx-unsigned copies
 aren't deleted by `cosign-sign:` — they stay in place because they
 serve a different audience:
 
-| Audience finds the SBOM via...                              | Reads which copy?                       | Cares about the signature? |
-| ----------------------------------------------------------- | --------------------------------------- | -------------------------- |
-| `cosign verify-attestation --type spdx`                     | the cosign-signed copy                  | Yes                        |
-| `docker buildx imagetools inspect`, `oras discover`         | the buildx-unsigned copy (their default) | No                         |
-| Older Trivy / GitOps / scanners without Sigstore support    | the buildx-unsigned copy                | No                         |
+| Audience finds the SBOM via...                              | Reads which copy?                                                                | Cares about the signature? |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------- |
+| `cosign verify-attestation --type spdx`                     | the cosign-signed copy                                                           | Yes                        |
+| `docker buildx imagetools inspect`                          | the buildx-unsigned copy                                                         | No                         |
+| `oras discover`, `cosign tree`                              | the cosign-signed copy, and the buildx one only if exported in OCI-artifact form | No                         |
+| Docker/BuildKit-aware tooling reading raw index manifests   | the buildx-unsigned copy                                                         | No                         |
 
 Cosign-aware consumers get a cryptographic anchor (verifiable
-identity, Rekor-logged); older / non-cosign-aware tools still find
-the data via the referrers API. Zero extra cost — buildx writes
-those referrers whether or not cosign later layers signed copies on
-top of the same content.
+identity, Rekor-logged); Docker/BuildKit-aware tooling can still read
+the unsigned build attestations from the image index. The easy mistake
+is to treat those unsigned copies as ordinary OCI 1.1 referrers: with
+the default BuildKit layout, `oras discover` may not enumerate them
+even though `docker buildx imagetools inspect` can read them just fine.
+Cosign then adds separately discoverable signed referrers on top of the
+same content.
 
 If you ever wanted to consolidate to a single copy: pass
 `--sbom=false --provenance=false` to the buildx build and the cosign-
@@ -336,9 +336,9 @@ via [gitsign](https://docs.sigstore.dev/cosign/signing/gitsign/) —
 the same Sigstore primitives (Fulcio + Rekor) applied to git itself.
 
 Wired up in [`.gitlab/ci/release.yml`](../../.gitlab/ci/release.yml)
-+ [`scripts/release.sh`](../../scripts/release.sh). Gitsign is
-**only installed when an actual release is happening** — no-release
-pipeline runs skip the install to stay fast.
+when release commit signing is enabled. Gitsign should be installed
+only when an actual release is happening — no-release pipeline runs
+should skip the install to stay fast.
 
 ### Why sign release commits
 
@@ -392,9 +392,8 @@ Tool versions:
 - `GITSIGN_VERSION` is pinned in `.gitlab/ci/release.yml`, tracked by
   Renovate's custom manager (same `# renovate: datasource=...`
   pattern used for `COSIGN_VERSION`).
-- Installed only when an actual release is happening —
-  `scripts/release.sh` short-circuits the install on no-release
-  pipeline runs to keep them fast.
+- Installed only when an actual release is happening so no-release
+  pipeline runs stay fast.
 
 ### Hardware-backed identity: YubiKey, WebAuthn
 
@@ -777,8 +776,8 @@ To remove Sigstore signing entirely (you accept unsigned releases):
 1. Delete [`.gitlab/ci/sign.yml`](../../.gitlab/ci/sign.yml).
 2. Remove the `id_tokens:` block and `GITSIGN_VERSION` from
    [`.gitlab/ci/release.yml`](../../.gitlab/ci/release.yml).
-3. Remove the `install_gitsign` / `configure_git_signing` calls from
-   [`scripts/release.sh`](../../scripts/release.sh).
+3. Remove any `install_gitsign` / `configure_git_signing` calls from
+  [`.gitlab/ci/release.yml`](../../.gitlab/ci/release.yml).
 4. Delete [`scripts/verify_image.py`](../../scripts/verify_image.py)
    and the `verify-image` target in [`Makefile`](../../Makefile).
 5. Drop the `sign` stage from `.gitlab/ci/base.yml`.

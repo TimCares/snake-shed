@@ -39,8 +39,8 @@ no use for it, follow the [manual-removal recipe](#removing-docker-support)
 below — it's a handful of `git rm` calls plus a couple of small edits.
 
 The script then self-deletes. The surrounding `scripts/` directory stays
-(it hosts other permanent project scripts such as `release.sh`).
-Re-running `make bootstrap` later just re-installs the dev environment —
+(it hosts other permanent project scripts).
+Re-running `make bootstrap` later just re-installs the dev environment,
 there's no template state left to migrate.
 
 ### Non-interactive use
@@ -67,6 +67,21 @@ the original template history is gone — you'd need to re-clone. The
 hook, pinned Python); it does not undo the template rename.
 
 ---
+
+## Pipeline Variables
+
+In order for GitLab Pipelines to run correctly, you will need the following Pipeline Variables:
+
+### Docker
+- CI_REGISTRY -> URL of your docker registry (e.g. docker-registry.my-company.com)
+- CI_REGISTRY_USER -> (robot user for docker-registry.my-company.com)
+- CI_REGISTRY_PASSWORD -> (robot user password for docker-registry.my-company.com)
+ 
+### Semantic Release
+- GITLAB_TOKEN -> (Repository access token, api permissions)
+ 
+### Renovate (see [here](#renovate-automated-dependency-updates) for more)
+- RENOVATE_TOKEN -> (Repository access token, api and write_repository permissions)
 
 ## Layout
 
@@ -150,7 +165,7 @@ the `make` target(s) that drive it.
 | Shell lint     | [shellcheck](https://www.shellcheck.net/) (via `shellcheck-py`) | `shell-check`                     | (none; defaults)                         |
 | Dockerfile lint| [hadolint](https://github.com/hadolint/hadolint) (via Docker) | `dockerfile-check`                | `.hadolint.yaml` (optional)              |
 | Tests          | [pytest](https://docs.pytest.org/) + `pytest-cov` | `test`, `test-cov`                | `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
-| Dep audit      | [pip-audit](https://pypi.org/project/pip-audit/) | `audit`                           | suppressions from `openvex.json` via `scripts/pip_audit_ignores_from_vex.py` |
+| Dep audit      | [py-audit](https://pypi.org/project/py-audit/) | `audit`                           | suppressions from `openvex.json` via `scripts/py_audit_ignores_from_vex.py` |
 | Secret scan    | [gitleaks](https://github.com/gitleaks/gitleaks) | `find-secrets`                    | `.gitleaks.toml`                         |
 | Vuln scan      | [trivy](https://github.com/aquasecurity/trivy) (fs + image) | `trivy`, `trivy-full`, `trivy-image`, `sbom` | `trivy.yaml`, `openvex.json` -> **docs:** [`docs/security/scanning.md`](security/scanning.md) |
 | Image sign     | [cosign](https://docs.sigstore.dev/cosign/) (Sigstore, keyless) | `verify-image` | `.gitlab/ci/sign.yml`, `scripts/verify_image.py` -> **docs:** [`docs/security/sigstore.md`](security/sigstore.md) |
@@ -207,7 +222,7 @@ template bootstrap and stay with your project forever.
 | File                                                        | Covers                                                                                                       |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | [`docs/security/README.md`](security/README.md)             | Overview, threat model, layered-defence diagram, "I just want to verify a release" cheat-sheet.              |
-| [`docs/security/scanning.md`](security/scanning.md)         | Trivy 4-tier scan model, `pip-audit`, gitleaks, SBOM, the OpenVEX justification + freshness policy.            |
+| [`docs/security/scanning.md`](security/scanning.md)         | Trivy 4-tier scan model, `py-audit`, gitleaks, SBOM, the OpenVEX justification + freshness policy.           |
 | [`docs/security/sigstore.md`](security/sigstore.md)         | Sigstore signing (`cosign` image + `cosign attest --type vuln` + `gitsign` release commits), verification, and how to operate this with **private artifacts** (self-hosted Sigstore / key-based fallback). |
 | [`docs/security/policy.md`](security/policy.md)             | `SECURITY.md` (vulnerability disclosure), `CODEOWNERS` (reviewer gating), CI / runner hardening (`CI_JOB_TOKEN` scope, protected branches/tags). |
 
@@ -305,9 +320,11 @@ The template ships a self-hosted Renovate runner. The actual update policy
    `write_repository`. Role: Developer or higher.
 2. **Expose the token to CI.** Settings → CI/CD → Variables → add
    `RENOVATE_TOKEN`. Mark it **masked** and **protected**.
-3. **Schedule the pipeline.** Build → Pipeline schedules → New schedule:
+3. If "Work items" (also known as "Issues") are not activated in the project, do:
+  `Project → Settings → General → Visibility, project features, permissions → Work items → Activate (flip the switch) → Scroll down and "Save changes"`
+4. **Schedule the pipeline.** Build → Pipeline schedules → New schedule:
    - Description: `Renovate`
-   - Interval pattern: e.g. `0 4 * * 1` (Mondays 04:00 UTC)
+   - Interval pattern: e.g. `0 2 * * 1` (Mondays 02:00 UTC)
    - Target branch: your default branch
    - Variables: `RENOVATE` = `true`
 

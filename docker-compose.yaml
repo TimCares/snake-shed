@@ -1,4 +1,4 @@
-name: my_project
+name: my-project
 
 services:
   app:
@@ -11,7 +11,7 @@ services:
     volumes:
       - ./config/config.yaml:/app/config/config.yaml:ro
     # Root filesystem is immutable at runtime. Anything the app needs to write
-    # must go through a tmpfs or named volume declared below.
+    # must go through a tmpfs or named volume.
     read_only: true
     tmpfs:
       - /tmp:size=64M,mode=1777

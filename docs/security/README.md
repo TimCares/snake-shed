@@ -10,7 +10,7 @@ regime changes.
 | File | Covers |
 | ---- | ------ |
 | [`README.md`](README.md) (this file) | High-level posture, threat model, the layered defence diagram, where to start. |
-| [`scanning.md`](scanning.md) | Vulnerability + secret scanning: Trivy (4 tiers), `pip-audit`, gitleaks, SBOM, the OpenVEX accepted-risk policy. |
+| [`scanning.md`](scanning.md) | Vulnerability + secret scanning: Trivy (4 tiers), `py-audit`, gitleaks, SBOM, the OpenVEX accepted-risk policy. |
 | [`vex.md`](vex.md) | How the `openvex.json` document feeds into org-wide vulnerability governance (Sonatype IQ / GUAC / DependencyTrack / CSAF compliance exports). |
 | [`sigstore.md`](sigstore.md) | Sigstore-anchored signing for images (`cosign`) and commits (`gitsign`), how to verify, and how to operate this with **private artifacts** (self-hosted Sigstore / key-based fallback). |
 | [`policy.md`](policy.md) | Repository governance: `SECURITY.md` disclosure policy, `CODEOWNERS` review gating, CI / runner hardening (`CI_JOB_TOKEN` scope, protected branches/tags). |
@@ -29,7 +29,7 @@ the others still hold: "**defence in depth**".
 │  1 · Developer workstation                                          │
 │      pre-commit  →  ruff (incl. S=bandit), gitleaks, hadolint,      │
 │                     shellcheck, codespell, commitizen, ty,          │
-│                     interrogate, pytest, pip-audit, OpenVEX         │
+│                     interrogate, pytest, py-audit, OpenVEX          │
 │                     policy check                                    │
 │      pre-push    →  the full `make check` aggregate (= CI quality)  │
 └─────────────────────────────────────────────────────────────────────┘
@@ -38,7 +38,7 @@ the others still hold: "**defence in depth**".
 │  2 · CI quality + security stages                                   │
 │      Repeats pre-commit checks on the whole repo (in case dev       │
 │      bypassed local hooks), then runs the security suite:           │
-│        pip-audit          → Python deps vs PyPA advisory DB         │
+│        py-audit          → Python deps vs PyPA advisory DB          │
 │        gitleaks           → full repo history secrets               │
 │        trivy fs (strict)  → blocking HIGH/CRITICAL on runtime deps  │
 │        trivy fs (broad)   → informational, all severities + dev     │
@@ -99,7 +99,7 @@ Continuous, sitting alongside all six layers:
 | Threat                                                                  | Defended by                                                                                                                  | Where it's documented              |
 | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | Dev commits a secret by mistake                                         | gitleaks (pre-commit + CI), `__DISABLE_LOAD_DOTENV__` in image                                                                | [scanning.md](scanning.md#gitleaks-secret-scanning) |
-| Python / OS dependency has a known CVE                                  | `pip-audit` + Trivy fs scan (blocking) + Renovate auto-PRs                                                                   | [scanning.md](scanning.md)         |
+| Python / OS dependency has a known CVE                                  | `py-audit` + Trivy fs scan (blocking) + Renovate auto-PRs                                                                   | [scanning.md](scanning.md)         |
 | Base image has a known CVE                                              | Trivy image scan (blocking on HIGH/CRITICAL) + Renovate `pinDigests`                                                          | [scanning.md](scanning.md#tier-4-image-scan-post-build-blocking) |
 | Build step is compromised                                               | Rootless `dind` + cosign-signed SLSA `mode=max` provenance attestation                                                       | [sigstore.md](sigstore.md#whats-signed-and-what-each-signature-buys-you) |
 | Registry token leaks from CI logs / `ps aux`                            | `docker login --password-stdin`                                                                                              | `.gitlab/ci/docker.yml`            |
@@ -188,9 +188,9 @@ Full discussion + concrete env-var snippets for both alternatives:
 ├── base.yml          stages, .uv-base, RENOVATE skip rule
 ├── quality.yml       lint / format / type / docstring / spell / shell
 ├── test.yml          pytest + coverage
-├── security.yml      pip-audit (VEX-suppressed), gitleaks,
+├── security.yml      py-audit (VEX-suppressed), gitleaks,
 │                     trivy fs (strict + broad, --vex), sbom
-├── release.yml       semantic-release + gitsign install
+├── release.yml       semantic-release
 ├── docker.yml        rootless-dind buildx build + push
 ├── image-scan.yml    trivy image (blocking, --vex; emits cosign-vuln)
 ├── sign.yml          cosign sign + cosign attest (vuln, spdx, slsa, openvex)
@@ -198,10 +198,10 @@ Full discussion + concrete env-var snippets for both alternatives:
 └── ...
 
 scripts/
-├── release.sh                       PSR + gitsign setup (CI release commit signing)
 ├── verify_image.py                  pyproject-driven `cosign verify` helper
 ├── check_vex.py                     OpenVEX policy enforcer
-└── pip_audit_ignores_from_vex.py    Shim: VEX → pip-audit `--ignore-vuln` flags
+└── py_audit_ignores_from_vex.py     Shim: VEX → py-audit `--ignore` flags
+└── trivy_image_local.py             Scan a local image of the current project state
 
 repo-root/
 ├── openvex.json           Single-source accepted-risk document (signed on release)

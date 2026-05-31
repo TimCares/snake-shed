@@ -12,7 +12,6 @@
   <a href="https://pre-commit.com/"><img src="https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white" alt="pre-commit"></a>
   <a href="https://www.conventionalcommits.org/"><img src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-FE5196?logo=conventionalcommits&logoColor=white" alt="Conventional Commits"></a>
   <a href="https://python-semantic-release.readthedocs.io/"><img src="https://img.shields.io/badge/semantic--release-python-e10079?logo=semantic-release" alt="semantic-release"></a>
-  <a href="https://pypi.org/project/pip-audit/"><img src="https://img.shields.io/badge/pip--audit-checked-brightgreen" alt="pip-audit"></a>
   <a href="https://github.com/gitleaks/gitleaks"><img src="https://img.shields.io/badge/gitleaks-protected-4B0082" alt="Gitleaks"></a>
   <a href="https://github.com/aquasecurity/trivy"><img src="https://img.shields.io/badge/trivy-scanned-1904DA?logo=aquasecurity&logoColor=white" alt="Trivy"></a>
   <a href="https://docs.renovatebot.com/"><img src="https://img.shields.io/badge/renovate-enabled-1A1F6C?logo=renovatebot&logoColor=white" alt="Renovate"></a>
@@ -134,12 +133,11 @@ docs/
   REPO_SETUP.md           Template internals & customization guide (safe to delete)
   security/               Security posture docs (survive `make bootstrap`)
     README.md             Overview + threat model + layered defense
-    scanning.md           Trivy 4-tier model, pip-audit, gitleaks, SBOM
+    scanning.md           Trivy 4-tier model, py-audit, gitleaks, SBOM
     sigstore.md           cosign + gitsign + private-artifact options
     policy.md             SECURITY.md, CODEOWNERS, CI/runner hardening
 scripts/
   bootstrap_template.py   One-time template rename (deletes itself after first run)
-  release.sh              python-semantic-release driver (called from CI)
 tests/
 Dockerfile                Hardened multi-stage image (removable via `make bootstrap`)
 docker-compose.yaml       Hardened local-run compose (volume-mounted config)

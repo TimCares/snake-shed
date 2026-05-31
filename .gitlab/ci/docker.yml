@@ -34,23 +34,22 @@ docker:
     # process listings inside the runner. Passing -p on the command
     # line would leak it to anything reading /proc.
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-    # The default `docker` driver cannot attach SBOM/provenance attestations
-    # because they ride on a separate manifest linked via the OCI 1.1
-    # referrers API. The `docker-container` driver runs BuildKit in a
-    # sibling container that does support this.
+    # The default `docker` driver cannot persist BuildKit SBOM/provenance
+    # attestations on pushed images. The `docker-container` driver runs a
+    # separate BuildKit instance that can publish those extra attestation
+    # manifests alongside the pushed image index.
     - docker buildx create --use --driver docker-container --name attestation-builder
     # `jq` is used below to extract the manifest digest from the buildx
     # metadata file so the cosign-sign job can target the exact bits we
     # just pushed (signatures attach to digests, not tags).
     - apk add --no-cache jq
   script:
-    # --push: send the image AND its attached attestations to the registry in
-    #         one transaction (you cannot `docker push` attestations after the
-    #         fact — they're separate OCI artifacts that reference the image
-    #         digest, and buildx only writes them during the push step).
+    # --push: publish the runnable image plus any BuildKit attestation
+    #         manifests in one transaction. Regular `docker push` cannot add
+    #         these build attestations after the fact.
     # --sbom=true: generate an SPDX SBOM of the image (via BuildKit's bundled
-    #              syft scanner) and attach it as an in-toto attestation
-    #              manifest via the OCI 1.1 referrers API.
+    #              syft scanner) and attach it as a BuildKit in-toto
+    #              attestation manifest on the pushed image index.
     # --provenance=mode=max: attach SLSA build provenance (full materials:
     #                       base images, source repo + commit, build config).
     #                       `mode=min` is the default; max is needed for
@@ -70,11 +69,11 @@ docker:
     - echo "IMAGE_DIGEST=$IMAGE_DIGEST" > image.env
     # Pull the buildx-attached SBOM + SLSA provenance back from the registry
     # so the cosign-sign: job can wrap them in *signed* in-toto attestations
-    # rooted at this CI job's OIDC identity. The original OCI 1.1 referrers
-    # stay in place (free discovery for non-cosign consumers); cosign-sign
-    # layers a Sigstore-anchored copy on top. Both representations have
-    # identical content (we just extracted one to feed the other) but only
-    # the cosign attestation carries a cryptographic identity claim.
+    # rooted at this CI job's OIDC identity. These unsigned BuildKit copies
+    # stay on the image index as attestation manifests, which
+    # `docker buildx imagetools inspect` can read back directly. Cosign then
+    # layers signed OCI referrers on top of the same content; only the cosign
+    # copies carry a cryptographic identity claim.
     - |
       IMG_REF="${IMAGE_NAME}@${IMAGE_DIGEST}"
       docker buildx imagetools inspect "$IMG_REF" \

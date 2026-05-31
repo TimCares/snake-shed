@@ -5,7 +5,7 @@ Local counterpart of the CI ``trivy-image:`` job. Builds from the repo
 ``Dockerfile``, tags the result with a project-local name, then runs Trivy
 with ``openvex.json`` when present (same accepted-risk policy CI applies to
 release images). A missing VEX file means no CVE suppressions — matching
-``check_vex.py`` and ``pip_audit_ignores_from_vex.py``.
+``check_vex.py`` and ``py_audit_ignores_from_vex.py``.
 
 Usage::
 

@@ -1,7 +1,4 @@
 # syntax=docker/dockerfile:1
-#
-# Replace `my_project` with your actual package name (matches
-# [project].name in pyproject.toml with hyphens → underscores).
 
 # =============================================================================
 # Stage 1: Builder — install dependencies and build the package

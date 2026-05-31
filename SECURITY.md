@@ -7,8 +7,7 @@ turns into a zero-day disclosure the moment it lands in the tracker.
 
 Report privately via one of:
 
-- **Preferred — GitLab Security Advisory:**
-  <https://gitlab.com/<group>/<project>/-/security/advisories/new>
+- **Git Platform Security Advisory** (preferred, both GitHub and GitLab support this)
 - **Email:** `<security@example.com>` (CC at least one maintainer for
   redundancy)
 - **Encrypted email (optional):** PGP key fingerprint
@@ -61,14 +60,13 @@ tagged release for the strongest guarantees.
 - The CI/CD pipeline (`.gitlab/ci/`, `.gitlab-ci.yml`)
 - Dependency / build configuration (`pyproject.toml`, `uv.lock`,
   `Dockerfile`, `renovate.json`, `trivy.yaml`, `openvex.json`)
-- The supply-chain tooling (`scripts/verify_image.py`,
-  `scripts/check_vex.py`, `scripts/pip_audit_ignores_from_vex.py`)
+- The supply-chain tooling (`scripts/verify_image.py`, `scripts/check_vex.py`, `scripts/py_audit_ignores_from_vex.py`)
 
 **Out of scope**
 
 - Vulnerabilities in **transitive dependencies** with no upstream fix
   yet — please report those to the upstream maintainer. We track them
-  via Trivy + pip-audit and apply fixes as upstream patches land.
+  via Trivy + py-audit and apply fixes as upstream patches land.
 - Findings against `tests/`, `docs/`, `wiki/`, or other non-shipped
   paths.
 - Issues that require an attacker to already have local file-system

@@ -46,10 +46,9 @@ repos:
     hooks:
       - id: shellcheck
 
-  # `hadolint-docker` pulls the upstream hadolint image on first run, so no
-  # local `brew install hadolint` is needed. Only fires when a Dockerfile is
-  # staged (`types: [dockerfile]`), so Docker is not required for unrelated
-  # commits. Remove this repo if you drop Docker support via `make bootstrap`.
+  # `hadolint-docker` pulls the upstream hadolint image on first run.
+  # Only fires when a Dockerfile is staged (`types: [dockerfile]`),
+  # so Docker is not required for unrelated commits.
   - repo: https://github.com/hadolint/hadolint
     rev: v2.14.0
     hooks:
@@ -62,7 +61,7 @@ repos:
         stages: [commit-msg]
 
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.30.0
+    rev: v8.30.1
     hooks:
       - id: gitleaks
 
@@ -102,9 +101,9 @@ repos:
         pass_filenames: false
         always_run: true
 
-      - id: pip-audit
-        name: pip-audit
-        entry: make audit
+      - id: py-audit
+        name: py-audit
+        entry: make py-audit
         language: system
         pass_filenames: false
         always_run: true

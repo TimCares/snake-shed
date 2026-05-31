@@ -20,8 +20,8 @@
 # Output
 # ------
 # Two artifact streams, plus a shared policy:
-#   1. `gl-container-scanning-report.json` — GitLab-native report so
-#      findings appear in the MR security widget and the project's
+#   1. `container-scanning-report.json` — Findings appear in the MR
+#      security widget and the project's
 #      Vulnerability Report (uses /contrib/gitlab.tpl).
 #   2. `cosign-vuln.json` — trivy's `cosign-vuln` format, a predicate
 #      compatible with the in-toto Vulnerability v0.2 spec. Consumed by
@@ -32,7 +32,7 @@
 #      CI logs after the fact.
 #
 # Policy invariant: the same OpenVEX document (`openvex.json` at the
-# repo root) governs both fs and image scans, as well as pip-audit
+# repo root) governs both fs and image scans, as well as py-audit
 # => one suppression document
 
 trivy-image:
@@ -72,7 +72,7 @@ trivy-image:
         --exit-code 0 \
         --format template \
         --template '@/contrib/gitlab.tpl' \
-        --output gl-container-scanning-report.json \
+        --output container-scanning-report.json \
         "$IMG"
       # Pass 2: cosign-vuln predicate. `cosign-sign:` downstream signs
       # this with Sigstore and attaches it to the image. Non-blocking
@@ -99,4 +99,4 @@ trivy-image:
       # `cosign attest --type vuln` step.
       - cosign-vuln.json
     reports:
-      container_scanning: gl-container-scanning-report.json
+      container_scanning: container-scanning-report.json

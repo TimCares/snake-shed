@@ -15,7 +15,40 @@
   },
   "prConcurrentLimit": 10,
   "prHourlyLimit": 4,
+  "gitlabci": {
+    "fileMatch": ["^\\.gitlab/ci/.*\\.ya?ml$"]
+  },
   "packageRules": [
+    {
+      "description": "Major bumps land alone and need manual review",
+      "matchUpdateTypes": ["major"],
+      "addLabels": ["major-update"],
+      "automerge": false
+    },
+    {
+      "description": "Container images get digest pinning by default",
+      "matchManagers": ["dockerfile", "docker-compose", "gitlabci"],
+      "groupName": "container images",
+      "pinDigests": true
+    },
+    {
+      "description": "Python runtime minor/major upgrades require explicit dashboard approval",
+      "matchDepNames": ["python"],
+      "matchUpdateTypes": ["minor", "major"],
+      "groupName": "python runtime",
+      "groupSlug": "python-runtime",
+      "addLabels": ["runtime", "manual-review"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "uv toolchain version upgrades require explicit dashboard approval",
+      "matchPackageNames": ["uv-build", "ghcr.io/astral-sh/uv"],
+      "matchUpdateTypes": ["patch", "minor", "major"],
+      "groupName": "uv toolchain",
+      "groupSlug": "uv-toolchain",
+      "addLabels": ["toolchain", "manual-review"],
+      "dependencyDashboardApproval": true
+    },
     {
       "description": "Group all Python dev dependencies into one PR",
       "matchManagers": ["pep621"],
@@ -26,12 +59,6 @@
       "description": "All pre-commit hook revs land in one PR by default",
       "matchManagers": ["pre-commit"],
       "groupName": "pre-commit hooks"
-    },
-    {
-      "description": "Container base images (Dockerfile + GitLab CI image:) in one PR, with digest pinning",
-      "matchManagers": ["dockerfile", "docker-compose", "gitlabci"],
-      "groupName": "container images",
-      "pinDigests": true
     },
     {
       "description": "Pytest + plugins together (overrides earlier dev/precommit grouping)",
@@ -47,12 +74,6 @@
       "description": "Gitleaks Docker image + pre-commit hook in lockstep (overrides earlier grouping)",
       "matchPackageNames": ["/gitleaks\\/gitleaks/", "/zricethezav\\/gitleaks/"],
       "groupName": "gitleaks"
-    },
-    {
-      "description": "Major bumps land alone and need manual review",
-      "matchUpdateTypes": ["major"],
-      "addLabels": ["major-update"],
-      "automerge": false
     }
   ],
   "vulnerabilityAlerts": {
@@ -63,7 +84,7 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Track inline-pinned tool versions in CI YAML via `# renovate: datasource=... depName=...` annotations (e.g. COSIGN_VERSION in .gitlab/ci/sign.yml).",
+      "description": "Track inline-pinned tool versions in CI YAML via `# renovate: datasource=... depName=...` annotations.",
       "fileMatch": ["^\\.gitlab/ci/.*\\.ya?ml$"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)(?:\\s+versioning=(?<versioning>[a-z-]+))?\\s+[A-Z_]+:\\s*\"(?<currentValue>v?[\\d][^\"]*)\""

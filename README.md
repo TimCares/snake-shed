@@ -172,3 +172,27 @@ docs (readme): update config section in README
 ```
 
 Versioning is handled automatically by [python-semantic-release](https://python-semantic-release.readthedocs.io/) in CI.
+
+### Linking Issues
+
+[python-semantic-release](https://python-semantic-release.readthedocs.io/)
+already detects linked issue identifiers in commit messages, including
+Jira-style keys such as `PROJ-123`. Put them in Git trailer format at the end
+of the commit message:
+
+```text
+feat(api): add customer export
+
+Resolves: PROJ-123
+```
+
+Multiple issues can be listed in one trailer:
+
+```text
+fix(config): handle missing env file
+
+Fixes: PROJ-123, PROJ-456
+```
+
+PSR uses these identifiers for changelog/release metadata. Your Git hosting or
+Jira integration is still responsible for creating the actual issue links.

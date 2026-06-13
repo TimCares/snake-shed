@@ -5,6 +5,12 @@
 .gitlab-ci.yml
 .gitleaks.toml
 
+# Local secrets / environment
+.env
+.env.*
+config/.env
+config/.env.*
+
 # Python build / cache
 __pycache__/
 *.py[cod]

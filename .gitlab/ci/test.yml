@@ -2,7 +2,7 @@ test:
   extends: .uv-base
   stage: test
   script:
-    - make test-cov PYTEST_COV_REPORT_ARGS="--cov-report=xml:coverage.xml" PYTEST_ARGS="--junitxml=report.xml"
+    - make test-cov PYTEST_REPORT_ARGS="--cov-report=xml:coverage.xml --junitxml=report.xml"
   artifacts:
     when: always
     reports:

@@ -107,7 +107,7 @@ ignore = [
     "D104",   # __init__.py docstrings — unnecessary boilerplate
     "TRY003", # long exception messages — too strict for real-world code
     "ISC001", # implicit string concat single-line — conflicts with ruff formatter
-    "PTH123", # Unnceessary verbose "Path.open" instead of "open" for files
+    "PTH123", # Unnecessary verbose "Path.open" instead of "open" for files
     "ANN401", # Any not allowed for *args and **kwargs, leads to awkward code
 ]
 
@@ -194,11 +194,11 @@ exclude_lines = [
 version_toml = ["pyproject.toml:project.version"]
 build_command = """
     set -e
-    uv lock --upgrade-package "$PACKAGE_NAME"
+    uv lock
     git add uv.lock
     uv build
 """  # includes commands to avoid a stale uv.lock
-build_command_env = []  # if the build commands needs variables from the env
+build_command_env = []  # if the build command needs variables from the env
 commit_parser = "conventional"
 commit_message = "chore(release): {version}\n\nSee CHANGELOG.md for more details. [skip ci]"
 commit_author = "semantic-release <semantic-release@ci>"

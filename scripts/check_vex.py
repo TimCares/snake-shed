@@ -145,9 +145,8 @@ def main() -> int:
             f"statements must carry a free-text `impact_statement`. "
             f"Structural validation (required fields, enums, conditional "
             f"constraints) is performed separately by the `vex-schema` "
-            f"pre-commit hook against the vendored upstream OpenVEX "
-            f"schema. See docs/security/scanning.md for the full "
-            f"rationale.\n"
+            f"pre-commit hook against the upstream OpenVEX "
+            f"schema."
         )
         return 1
 

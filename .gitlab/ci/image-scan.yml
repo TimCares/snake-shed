@@ -1,38 +1,19 @@
 # Vulnerability scan of the BUILT Docker image.
 #
-# Why it exists
-# -------------
-# `trivy:` (in security.yml) scans the source repo — Python deps + IaC
-# misconfig. It cannot see what lands in the runtime image: base-image
+# `trivy:` (in security.yml) scans the source repo.
+# It cannot see what lands in the runtime image: base-image
 # OS packages (libc, openssl, zlib, …), bytecode-compiled artifacts, or
-# anything resolved at `docker build` time. This job closes that gap by
-# scanning the exact bits we're about to sign.
+# anything resolved at `docker build` time. This job closes that gap.
 #
-# Topology
-# --------
-# Sits between `docker:` (build + push) and `cosign-sign:` (sign) in the
-# `docker` stage. `cosign-sign` `needs:` this job, so a failing scan
-# stops signing — verifiers running `make verify-image` / `cosign verify`
-# will then reject the unsigned image. The image itself is already in
-# the registry at this point (buildx `--push` is atomic) but without a
-# Sigstore signature it has no provenance any consumer can trust.
-#
-# Output
-# ------
-# Two artifact streams, plus a shared policy:
-#   1. `container-scanning-report.json` — Findings appear in the MR
+# Creates:
+#   1. `container-scanning-report.json`: Findings appear in the MR
 #      security widget and the project's
 #      Vulnerability Report (uses /contrib/gitlab.tpl).
-#   2. `cosign-vuln.json` — trivy's `cosign-vuln` format, a predicate
-#      compatible with the in-toto Vulnerability v0.2 spec. Consumed by
-#      `cosign-sign:` which wraps it in a DSSE envelope, Sigstore-signs
-#      it, and attaches it to the image digest as an OCI 1.1 referrer.
-#      Downstream consumers then run `cosign verify-attestation --type vuln`
-#      to confirm both WHO scanned and WHAT they found, without trusting
-#      CI logs after the fact.
+#   2. `cosign-vuln.json` trivy's `cosign-vuln` format, a predicate
+#      compatible with the in-toto Vulnerability v0.2 spec.
 #
 # Policy invariant: the same OpenVEX document (`openvex.json` at the
-# repo root) governs both fs and image scans, as well as py-audit
+# repo root) used in both fs and image scans, as well as py-audit
 # => one suppression document
 
 trivy-image:
@@ -62,10 +43,12 @@ trivy-image:
         echo "No release, skipping image scan"
         exit 0
       fi
-      IMG="${IMAGE_NAME}@${IMAGE_DIGEST}"
-      # Pass 1: GitLab-native report for the MR security widget.
+
+      # "IMG_REF" env var comes from the "docker" job:
+
+      # Pass 1: GitLab-native report
       # `--exit-code 0` so the report is always written even if CVEs are
-      # found; the strict pass at the end enforces the blocking decision.
+      # found, the strict pass at the end enforces the blocking decision.
       trivy image \
         --severity HIGH,CRITICAL \
         --vex "$VEX_FILE" \
@@ -73,30 +56,27 @@ trivy-image:
         --format template \
         --template '@/contrib/gitlab.tpl' \
         --output container-scanning-report.json \
-        "$IMG"
-      # Pass 2: cosign-vuln predicate. `cosign-sign:` downstream signs
-      # this with Sigstore and attaches it to the image. Non-blocking
-      # for the same reason as pass 1 — gate decision lives in pass 3.
+        "$IMG_REF"
+      # Pass 2: cosign-vuln predicate. Non-blocking
+      # for the same reason as pass 1, gate decision lives in pass 3.
       trivy image \
         --severity HIGH,CRITICAL \
         --vex "$VEX_FILE" \
         --exit-code 0 \
         --format cosign-vuln \
         --output cosign-vuln.json \
-        "$IMG"
+        "$IMG_REF"
       # Pass 3: human-readable table for CI logs + blocking exit code.
       # Vuln DB is cached from earlier passes, so this is fast.
       trivy image \
         --severity HIGH,CRITICAL \
         --vex "$VEX_FILE" \
         --exit-code 1 \
-        "$IMG"
+        "$IMG_REF"
   artifacts:
     when: always
     expire_in: 1 year
     paths:
-      # Picked up by `cosign-sign:` (via needs.artifacts: true) for the
-      # `cosign attest --type vuln` step.
       - cosign-vuln.json
     reports:
       container_scanning: container-scanning-report.json

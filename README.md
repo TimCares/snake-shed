@@ -8,7 +8,7 @@
   <a href="https://docs.astral.sh/ty/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ty/main/assets/badge/v0.json" alt="ty"></a>
   <a href="https://github.com/econchick/interrogate"><img src="https://interrogate.readthedocs.io/en/latest/_static/interrogate_badge.svg" alt="interrogate"></a>
   <a href="https://docs.pytest.org/"><img src="https://img.shields.io/badge/tests-pytest-0A9EDC?logo=pytest&logoColor=white" alt="pytest"></a>
-  <a href="https://img.shields.io/badge/coverage-≥80%25-brightgreen"><img src="https://img.shields.io/badge/coverage-%E2%89%A580%25-brightgreen" alt="coverage ≥80%"></a>
+  <a href="https://coverage.readthedocs.io/"><img src="https://img.shields.io/badge/coverage-%E2%89%A580%25-brightgreen" alt="coverage ≥80%"></a>
   <a href="https://pre-commit.com/"><img src="https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white" alt="pre-commit"></a>
   <a href="https://www.conventionalcommits.org/"><img src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-FE5196?logo=conventionalcommits&logoColor=white" alt="Conventional Commits"></a>
   <a href="https://python-semantic-release.readthedocs.io/"><img src="https://img.shields.io/badge/semantic--release-python-e10079?logo=semantic-release" alt="semantic-release"></a>
@@ -24,12 +24,10 @@ This project is a compact template with all the components already included. Fea
 - Easy python environment handling
 - Full config handling with YAML and env files
 - Strict code quality checks
-- Layered security: vulnerability + secret scanning, signed releases
-  (cosign images + gitsign commits + signed vuln-scan, SBOM, SLSA, and
-  OpenVEX attestations), CycloneDX SBOMs, single-source-of-truth
+- Layered security: vulnerability + secret scanning,
+  CycloneDX SBOMs, single-source-of-truth
   OpenVEX accepted-risk document with controlled-vocab justifications
-  + enforced freshness window, hardened runtime environment. See
-  [`docs/security/`](docs/security/README.md) for the full story.
+  + enforced freshness window, hardened runtime environment.
 - Automated testing
 - CI (`gitlab`, easily swappable)
 - Enterprise-ready git workflow (conventional commits, semantic-release, pre-commit hooks)
@@ -40,12 +38,8 @@ This project is a compact template with all the components already included. Fea
 
 **Disclaimer**: This template aims to serve a wide range of use cases, so you
 should adjust it according to your requirements and taste. There is a lot to
-take in — [`docs/REPO_SETUP.md`](docs/REPO_SETUP.md) walks through every
-moving part, why it's there, and how to swap or remove it. (Feel free to
-delete that file once you're done with it; `make bootstrap` will offer to
-do it for you. The [`docs/security/`](docs/security/README.md) directory
-is **not** offered for deletion, those docs survive the bootstrap and
-stay with your project.)
+take in, [`docs/REPO_SETUP.md`](docs/REPO_SETUP.md) walks through every
+moving part, why it's there, and how to swap or remove it.
 
 ## Prerequisites
 
@@ -63,11 +57,11 @@ make bootstrap
 
 On the **first run**, `make bootstrap` is interactive: it asks for a project
 name (defaulting to the directory name), package name, description, and
-author, then renames the placeholder layout (`src/my_project/` →
+author, then renames the placeholder layout (`src/my_project/` ->
 `src/<your_package>/`) and updates `pyproject.toml`, the README, and tests
 accordingly. After that it installs the pinned Python, dependencies, and
 pre-commit hooks. The rename script self-deletes when it's done, so
-re-running `make bootstrap` later just re-installs the dev environment —
+re-running `make bootstrap` later just re-installs the dev environment,
 which is what you want.
 
 For non-interactive use (CI, dotfiles, etc.) the rename step accepts a
@@ -82,13 +76,13 @@ Run `make help` to see all available commands, grouped by category. The two
 you'll use most:
 
 ```text
-make check    Run the full local check suite — exactly what CI and
+make check    Run the full local check suite, exactly what CI and
               pre-commit run. Read-only; never modifies files.
 make fix      Run every auto-fixer (format + lint + repo hygiene).
               Run this locally before committing.
 ```
 
-Pre-commit is intentionally **check-only** — it verifies but never modifies
+Pre-commit is intentionally **check-only**, it verifies but never modifies
 files mid-commit. A failed commit means "run `make fix` and try again."
 See [`docs/REPO_SETUP.md`](docs/REPO_SETUP.md#make-targets-check-vs-fix)
 for the full check/fix breakdown.
@@ -131,11 +125,6 @@ config/
   .env.dist               Environment variable template
 docs/
   REPO_SETUP.md           Template internals & customization guide (safe to delete)
-  security/               Security posture docs (survive `make bootstrap`)
-    README.md             Overview + threat model + layered defense
-    scanning.md           Trivy 4-tier model, py-audit, gitleaks, SBOM
-    sigstore.md           cosign + gitsign + private-artifact options
-    policy.md             SECURITY.md, CODEOWNERS, CI/runner hardening
 scripts/
   bootstrap_template.py   One-time template rename (deletes itself after first run)
 tests/
@@ -156,7 +145,7 @@ wiki/
 The `src/my_project/` layout is the standard PyPA-recommended *src layout*.
 As the project grows, add subpackages directly under it (e.g.
 `src/my_project/core/`, `src/my_project/api/`) rather than dumping modules at
-the top level. No `pyproject.toml` change needed — see
+the top level. No `pyproject.toml` change needed, see
 [`docs/REPO_SETUP.md`](docs/REPO_SETUP.md#layout) for the full rationale.
 
 ## Configuration

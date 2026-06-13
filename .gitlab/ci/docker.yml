@@ -39,9 +39,7 @@ docker:
     # separate BuildKit instance that can publish those extra attestation
     # manifests alongside the pushed image index.
     - docker buildx create --use --driver docker-container --name attestation-builder
-    # `jq` is used below to extract the manifest digest from the buildx
-    # metadata file so the cosign-sign job can target the exact bits we
-    # just pushed (signatures attach to digests, not tags).
+    # `jq` is used below to extract the manifest digest from the buildx metadata file
     - apk add --no-cache jq
   script:
     # --push: publish the runnable image plus any BuildKit attestation
@@ -55,27 +53,21 @@ docker:
     #                       `mode=min` is the default; max is needed for
     #                       SLSA L3 compliance.
     # --metadata-file: emit a JSON with the resulting manifest digest, which
-    #                 is then propagated as `IMAGE_DIGEST` via dotenv so the
-    #                 cosign-sign job can sign the exact same bits.
+    #                 is then used as an artifact
     - >-
       docker buildx build --push
       --sbom=true
       --provenance=mode=max
-      --metadata-file metadata.json
+      --metadata-file image-metadata.json
       -t "$IMAGE_NAME:$VERSION"
       -t "$IMAGE_NAME:latest"
       .
-    - IMAGE_DIGEST=$(jq -r '."containerimage.digest"' metadata.json)
-    - echo "IMAGE_DIGEST=$IMAGE_DIGEST" > image.env
-    # Pull the buildx-attached SBOM + SLSA provenance back from the registry
-    # so the cosign-sign: job can wrap them in *signed* in-toto attestations
-    # rooted at this CI job's OIDC identity. These unsigned BuildKit copies
-    # stay on the image index as attestation manifests, which
-    # `docker buildx imagetools inspect` can read back directly. Cosign then
-    # layers signed OCI referrers on top of the same content; only the cosign
-    # copies carry a cryptographic identity claim.
+    - echo "IMAGE_NAME=$IMAGE_NAME" > image.env
+    - IMAGE_DIGEST=$(jq -r '."containerimage.digest"' image-metadata.json)
+    - echo "IMAGE_DIGEST=$IMAGE_DIGEST" >> image.env
+    - IMG_REF="${IMAGE_NAME}@${IMAGE_DIGEST}"
+    - echo "IMG_REF=$IMG_REF" >> image.env
     - |
-      IMG_REF="${IMAGE_NAME}@${IMAGE_DIGEST}"
       docker buildx imagetools inspect "$IMG_REF" \
         --format '{{json .SBOM.SPDX}}' > image-sbom.spdx.json
       docker buildx imagetools inspect "$IMG_REF" \
@@ -94,5 +86,6 @@ docker:
     reports:
       dotenv: image.env
     paths:
+      - image-metadata.json
       - image-sbom.spdx.json
       - image-provenance.json

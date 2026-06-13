@@ -1,6 +1,6 @@
 # [Your Python Project]
 
-This project does now have instructions for AI Agents yet, they must be set by the 
+This project does not have instructions for AI Agents yet; they must be set by the
 maintainer.
 For now, refer to [`README.md`](README.md) for more details.
 

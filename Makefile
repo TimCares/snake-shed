@@ -6,8 +6,9 @@
 # statement. The shim writes to stdout only; `check_vex.py` is the
 # enforcer (justification, controlled-vocab status, freshness window).
 VEX_FILE := openvex.json
-PY_AUDIT_IGNORES := $(shell uv run python scripts/py_audit_ignores_from_vex.py)
+PY_AUDIT_IGNORES = $(shell uv run python scripts/py_audit_ignores_from_vex.py)
 TRIVY_VEX_FLAG := --vex $(VEX_FILE)
+PYTEST_REPORT_ARGS ?= --cov-report=xml
 
 .DEFAULT_GOAL := help
 
@@ -168,28 +169,13 @@ trivy-full:  ## [check] Trivy scan at all severities incl. dev deps (information
 trivy-image:  ## [check] Build this project's image and scan with trivy + openvex.json
 	uv run python scripts/trivy_image_local.py
 
-# Verify a released image's Sigstore signature. Thin wrapper around
-# `scripts/verify_image.py`, which reads the platform + host from
-# `[tool.semantic_release.remote]` in pyproject.toml —> no duplication of
-# "what platform are we on" config across files. For tighter cert pinning
-# in automated gates, invoke the script directly with `--project <group/repo>`.
-.PHONY: verify-image
-verify-image:  ## [check] Verify cosign signature of a released image. Usage: make verify-image IMAGE=<ref>
-	@if [ -z "$(IMAGE)" ]; then \
-		echo "Usage: make verify-image IMAGE=<registry/path>:<tag-or-digest>" >&2; \
-		echo "       For automated deploy gates, invoke the script directly:" >&2; \
-		echo "         python scripts/verify_image.py --project <group/repo> <IMAGE>" >&2; \
-		exit 1; \
-	fi
-	uv run python scripts/verify_image.py "$(IMAGE)"
-
 .PHONY: test
 test:  ## [check] Run tests with pytest
 	uv run pytest
 
 .PHONY: test-cov
 test-cov:  ## [check] Run tests with coverage report
-	uv run pytest --cov --cov-report=term-missing --cov-report=xml
+	uv run pytest --cov --cov-report=term-missing $(PYTEST_REPORT_ARGS)
 
 # `check` is the aggregate the CI pipeline and pre-commit can rely on.
 # Docker-dependent targets (`trivy`, `trivy-full`, `trivy-image`, `dockerfile-check`)

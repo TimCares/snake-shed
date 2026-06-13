@@ -26,6 +26,6 @@
 /trivy.yaml                    @security-team
 /.gitleaks.toml                @security-team
 
-# --- Release & signing tooling ---
+# --- Release tooling ---
 /scripts/check_vex.py                    @security-team
 /scripts/py_audit_ignores_from_vex.py    @security-team

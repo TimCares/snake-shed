@@ -12,9 +12,9 @@ from the current directory (or chosen interactively), rewrites the relevant
 fields in `pyproject.toml`, README, and tests, and deletes the stale
 `uv.lock` so `uv sync` can regenerate it cleanly.
 
-This script is invoked automatically by `make bootstrap` on first run. The
-`Makefile` removes it (and the surrounding `scripts/` directory if empty)
-after a successful exit so it does not linger in downstream project history.
+This script is invoked automatically by `make bootstrap` on first run. It
+removes itself after a successful exit so it does not linger in downstream
+project history.
 
 Usage:
     uv run --script scripts/bootstrap_template.py            # interactive
@@ -352,8 +352,8 @@ def self_delete() -> None:
     a subsequent ``reset_git_history`` call captures a clean working tree.
 
     The surrounding ``scripts/`` directory is intentionally kept: it hosts
-    other permanent project scripts (e.g. ``release.sh``) and project-specific
-    ones might be added later there.
+    permanent helper scripts and project-specific ones might be added later
+    there.
     """
     here = Path(__file__).resolve()
     if here.exists():

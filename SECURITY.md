@@ -10,9 +10,6 @@ Report privately via one of:
 - **Git Platform Security Advisory** (preferred, both GitHub and GitLab support this)
 - **Email:** `<security@example.com>` (CC at least one maintainer for
   redundancy)
-- **Encrypted email (optional):** PGP key fingerprint
-  `0000 0000 0000 0000 0000  0000 0000 0000 0000 0000 0000`
-  (key at `https://example.com/security.asc`)
 
 We aim to:
 
@@ -25,19 +22,15 @@ We aim to:
 > Unreachable contacts are worse than none => researchers will fall back
 > to public disclosure.
 
-## Verifying releases
+## Releases
 
-Every release publishes a Docker image signed with Sigstore (keyless,
-via cosign). Before relying on a release in production, verify the
-signature, full instructions in
-[`docs/security/sigstore.md` § Verification](docs/security/sigstore.md#verification).
+Every release publishes a Docker image and additional metadata:
 
-Each image also ships:
-
-- A CycloneDX **SBOM** attached as an OCI 1.1 referrer
+- An SPDX **image SBOM** attached as an OCI 1.1 referrer
 - A SLSA build **provenance** attestation (`mode=max`)
 
 Both are discoverable via the registry's referrers API.
+The CI pipeline also publishes a CycloneDX repository SBOM artifact.
 
 ## Supported versions
 
@@ -60,12 +53,12 @@ tagged release for the strongest guarantees.
 - The CI/CD pipeline (`.gitlab/ci/`, `.gitlab-ci.yml`)
 - Dependency / build configuration (`pyproject.toml`, `uv.lock`,
   `Dockerfile`, `renovate.json`, `trivy.yaml`, `openvex.json`)
-- The supply-chain tooling (`scripts/verify_image.py`, `scripts/check_vex.py`, `scripts/py_audit_ignores_from_vex.py`)
+- The supply-chain tooling (`scripts/check_vex.py`, `scripts/py_audit_ignores_from_vex.py`)
 
 **Out of scope**
 
 - Vulnerabilities in **transitive dependencies** with no upstream fix
-  yet — please report those to the upstream maintainer. We track them
+  yet, please report those to the upstream maintainer. We track them
   via Trivy + py-audit and apply fixes as upstream patches land.
 - Findings against `tests/`, `docs/`, `wiki/`, or other non-shipped
   paths.

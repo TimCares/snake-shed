@@ -123,6 +123,8 @@ src/
 config/
   config.yaml             App config (env vars via OmegaConf interpolation)
   .env.dist               Environment variable template
+assets/                   Project-owned static files (safe to commit)
+artifacts/                Local runtime inputs mounted into Docker (not baked into image)
 docs/
   REPO_SETUP.md           Template internals & customization guide (safe to delete)
 scripts/

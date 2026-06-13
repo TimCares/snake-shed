@@ -9,9 +9,11 @@ services:
     env_file:
       - ./config/.env
     volumes:
+      # Local runtime inputs (models, data snapshots, etc.). Keep read-only by
+      # default; use object storage or add an explicit named volume for durable writes.
+      - ./artifacts:/app/artifacts:ro
       - ./config/config.yaml:/app/config/config.yaml:ro
-    # Root filesystem is immutable at runtime. Anything the app needs to write
-    # must go through a tmpfs or named volume.
+    # Root filesystem is immutable at runtime. Ephemeral writes go to tmpfs.
     read_only: true
     tmpfs:
       - /tmp:size=64M,mode=1777

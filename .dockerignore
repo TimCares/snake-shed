@@ -1,6 +1,7 @@
 # VCS
 .git/
 .gitignore
+.gitkeep
 .gitlab/
 .gitlab-ci.yml
 .gitleaks.toml
@@ -10,6 +11,10 @@
 .env.*
 config/.env
 config/.env.*
+!config/.env.dist
+
+# Runtime inputs mounted by compose, not baked into the image
+artifacts/
 
 # Python build / cache
 __pycache__/

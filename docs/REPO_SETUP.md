@@ -3,7 +3,7 @@
 This document is the long-form companion to the [README](../README.md). It
 explains what every moving part of the template is, why it's there, and how
 to customize or remove it. Once you've finished setting up your project you
-can safely delete this file — `make bootstrap` offers to do that for you on
+can safely delete this file. `make bootstrap` offers to do that for you on
 its first run.
 
 ---
@@ -219,7 +219,7 @@ or remove the code from `select`.
 
 ### Lower the coverage / docstring bars
 
-Edit `fail_under` in `[tool.coverage.report]` and `[tool.interrogate]`.
+**Recommended:** Edit `fail_under` in `[tool.coverage.report]` and `[tool.interrogate]` (currently 0).
 
 ### Switch CI provider
 

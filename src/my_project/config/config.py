@@ -1,13 +1,13 @@
 """Pydantic configuration schemas for the application.
 
-Each nested model maps to a section in `config/config.yaml`.  Values are
-resolved from environment variables via OmegaConf's `${oc.env:...}`
-interpolation before Pydantic validates them.
+Each nested model maps to a section in `config/config.yaml`.
 """
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field
+
+from .secret import SecretRef
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 LogFormat = Literal["console", "json"]
@@ -26,7 +26,8 @@ class LoggingConfig(BaseModel):
 class Config(BaseModel):
     """Root configuration validated by Pydantic."""
 
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     my_config_field: str = Field(..., description="My config field")
-    my_env: str = Field(..., description="My env")
-    my_secret: SecretStr = Field(..., description="My secret")
+    my_secret: SecretRef = Field(..., description="My secret")

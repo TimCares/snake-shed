@@ -32,11 +32,6 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/.venv/bin:$PATH"
 
-# Tells the app's config loader to skip the implicit `config/.env` fallback.
-# Container env vars must come from the runtime (`docker run --env-file`,
-# Compose `env_file:`, k8s Secrets, …), never from a file baked into the image.
-ENV __DISABLE_LOAD_DOTENV__=1
-
 # Create a non-privileged user that the app will run under.
 # See https://docs.docker.com/build/building/best-practices/#user
 ARG UID=10001

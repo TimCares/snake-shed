@@ -119,9 +119,9 @@ src/
     __version__.py        Version (reads from pyproject.toml metadata)
     config/
       config.py           Pydantic configuration schemas
-      config_loader.py    OmegaConf YAML loading + Pydantic validation
+      config_loader.py    YAML loading + Pydantic validation
 config/
-  config.yaml             App config (env vars via OmegaConf interpolation)
+  config.yaml             App config (secrets via files or env variables)
   .env.dist               Environment variable template
 assets/                   Project-owned static files (safe to commit)
 artifacts/                Local runtime inputs mounted into Docker (not baked into image)
@@ -152,10 +152,11 @@ the top level. No `pyproject.toml` change needed, see
 
 ## Configuration
 
-Configuration is defined in [`config/config.yaml`](config/config.yaml) using OmegaConf's `${oc.env:VAR}` syntax to resolve environment variables. Values are validated at startup through Pydantic models in [`src/my_project/config/config.py`](src/my_project/config/config.py).
+Configuration is defined in [`config/config.yaml`](config/config.yaml).
 
-Environment variables are loaded from `config/.env` by default.
-Missing default `.env` files are ignored, while an explicitly provided path to an env file (`env_file`) must point to a valid file.
+Secrets should be provided as *files* and declared as `provider: file` in yaml (although env variables are also possible -> `provider: env`), which is a better practice than env variables. See [`src/my_project/config/secret.py`](src/my_project/config/secret.py) for details.
+
+All values are validated at startup through Pydantic models in [`src/my_project/config/config.py`](src/my_project/config/config.py).
 
 ## Wiki
 

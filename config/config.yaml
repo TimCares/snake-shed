@@ -1,6 +1,7 @@
 logging:
-  level: ${oc.env:LOG_LEVEL,INFO}
-  format: ${oc.env:LOG_FORMAT,console}
+  level: INFO
+  format: console
 my_config_field: my_config_field_value
-my_env: ${oc.env:MY_ENV}
-my_secret: ${oc.env:MY_SECRET}
+my_secret:
+  provider: env
+  name: MY_SECRET

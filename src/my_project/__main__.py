@@ -20,7 +20,7 @@ def main() -> int:
     logger.info(
         "configuration_loaded",
         my_config_field=cfg.my_config_field,
-        my_env=cfg.my_env,
+        my_secret=cfg.my_secret,
     )
 
     # Replace this with your application's entry point.

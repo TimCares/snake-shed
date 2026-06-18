@@ -40,7 +40,7 @@ shell-check:
   script:
     - make shell-check
 
-find-secrets:
+secrets-check:
   stage: quality
   image:
     name: zricethezav/gitleaks:v8.30.1

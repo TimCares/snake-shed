@@ -1,10 +1,9 @@
-name: my-project
-
 services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
+      target: hardened
     image: my_project:latest
     env_file:
       - ./config/.env
@@ -21,7 +20,6 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    restart: unless-stopped
     # Resource limits should be adjusted to the actual workload. Without these a runaway process
     # can overload the host.
     deploy:

@@ -140,8 +140,8 @@ vex-check:  ## [check] Enforce OpenVEX policy (schema + local freshness 180-day 
 py-audit:  ## [check] Audit python dependencies for known vulnerabilities (VEX-suppressed)
 	uv audit --locked --output-format json $(PY_AUDIT_IGNORES)
 
-.PHONY: find-secrets
-find-secrets:  ## [check] Scan for secrets with gitleaks (uses .gitleaks.toml)
+.PHONY: secrets-check
+secrets-check:  ## [check] Scan for secrets with gitleaks (uses .gitleaks.toml)
 	uv run pre-commit run gitleaks
 
 # Produces sbom.cdx.json —> CycloneDX inventory of every component in the
@@ -183,7 +183,7 @@ test-cov:  ## [check] Run tests with coverage report
 # pre-commit's `hadolint-docker` hook covers Dockerfile linting on changes;
 # the trivy targets are opt-in and slow (vuln DB download).
 .PHONY: check
-check: repo-check format-check lint-check type-check docstring-check spell-check shell-check test-cov py-audit find-secrets  ## [check] Run the full local check suite (no file changes)
+check: repo-check format-check lint-check type-check docstring-check spell-check shell-check test-cov py-audit secrets-check  ## [check] Run the full local check suite (no file changes)
 
 # =============================================================================
 # Fix targets (modify files — run locally before committing)
@@ -199,8 +199,8 @@ lint:  ## [fix] Lint and auto-fix issues (ruff)
 
 .PHONY: repo-fix
 repo-fix:  ## [fix] Auto-fix whitespace and end-of-file issues
-	uv run pre-commit run trailing-whitespace --all-files || true
-	uv run pre-commit run end-of-file-fixer --all-files || true
+	uv run pre-commit run trailing-whitespace --all-files --hook-stage manual || true
+	uv run pre-commit run end-of-file-fixer --all-files --hook-stage manual || true
 
 # `fix` runs every auto-fixer the project knows about
 .PHONY: fix
@@ -210,7 +210,7 @@ fix: format lint repo-fix  ## [fix] Run every auto-fixer (format + lint + repo-f
 # Release (local; CI uses .gitlab/ci/release.yml)
 # =============================================================================
 #
-# `make release` bumps the version, regenerates CHANGELOG.md, tags, 
+# `make release` bumps the version, regenerates CHANGELOG.md, tags,
 # but does NOT push. All based on conventional commits since the last
 # tag. Settings live under `[tool.semantic_release]` in pyproject.toml.
 #

@@ -27,7 +27,7 @@ This project is a compact template with all the components already included. Fea
 - Layered security: vulnerability + secret scanning,
   CycloneDX SBOMs, single-source-of-truth
   OpenVEX accepted-risk document with controlled-vocab justifications
-  + enforced freshness window, hardened runtime environment.
+  + enforced freshness window, hardened docker image and runtime environment.
 - Automated testing
 - CI (`gitlab`, easily swappable)
 - Enterprise-ready git workflow (conventional commits, semantic-release, pre-commit hooks)
@@ -47,11 +47,15 @@ Just [uv](https://docs.astral.sh/uv/getting-started/installation/)!
 
 ## Getting Started
 
-Clone the template into a directory named after your project, then run a single command:
+Clone the template into a directory named after your project:
 
 ```bash
 git clone <template-url> my-new-project
 cd my-new-project
+```
+
+Run:
+```bash
 make bootstrap
 ```
 
@@ -100,7 +104,7 @@ python -m my_project
 
 ### Docker
 
-Or by running the [`docker container`](./Dockerfile) (built-in) with [`docker-compose.yaml`](./docker-compose.yaml):
+Or by running the [`docker container`](./docker/Dockerfile) (built-in) with [`docker-compose.yaml`](./docker-compose.yaml):
 
 ```bash
 docker compose up -d --build
@@ -114,9 +118,10 @@ the box for both local execution and docker, when running locally the code shoul
 
 ```text
 src/
-  my_project/             Your package (renamed by `make bootstrap` on first run)
+  my_project/             Central code
     __main__.py           Entry point: `python -m my_project`
     __version__.py        Version (reads from pyproject.toml metadata)
+    core/                 Core code
     config/
       config.py           Pydantic configuration schemas
       config_loader.py    YAML loading + Pydantic validation
@@ -127,10 +132,12 @@ assets/                   Project-owned static files (safe to commit)
 artifacts/                Local runtime inputs mounted into Docker (not baked into image)
 docs/
   REPO_SETUP.md           Template internals & customization guide (safe to delete)
-scripts/
-  bootstrap_template.py   One-time template rename (deletes itself after first run)
+scripts/                  Various scripts
 tests/
-Dockerfile                Hardened multi-stage image (removable via `make bootstrap`)
+docker/
+  Dockerfile              Hardened image: distroless default + debian convenience
+  extra-libs.txt          System libs to force-stage into the distroless image
+  README.md               Container image guide (targets, staging, import gate)
 docker-compose.yaml       Hardened local-run compose (volume-mounted config)
 .dockerignore             Build-context exclusions
 wiki/

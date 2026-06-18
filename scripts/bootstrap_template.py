@@ -24,6 +24,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import keyword
 import os
 import re
@@ -31,12 +32,15 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = ROOT / "pyproject.toml"
 SRC = ROOT / "src"
 README = ROOT / "README.md"
+OPENVEX = ROOT / "openvex.json"
 TESTS = ROOT / "tests"
 UV_LOCK = ROOT / "uv.lock"
 LICENSE_FILE = ROOT / "LICENSE"
@@ -47,7 +51,7 @@ REPO_SETUP = ROOT / "docs" / "REPO_SETUP.md"
 # Python module paths get the package name (underscores). The template
 # always ships Docker support — users who don't want it follow the
 # manual-removal recipe in `docs/REPO_SETUP.md`.
-DOCKER_REWRITE_PACKAGE: tuple[str, ...] = ("Dockerfile",)
+DOCKER_REWRITE_PACKAGE: tuple[str, ...] = ("docker/Dockerfile",)
 DOCKER_REWRITE_PROJECT: tuple[str, ...] = ("docker-compose.yaml", ".gitlab/ci/docker.yml")
 
 PLACEHOLDER_PROJECT = "my-project"
@@ -141,7 +145,7 @@ def confirm(prompt: str, *, default: bool = True, non_interactive: bool) -> bool
 
 
 def collect_inputs(*, non_interactive: bool) -> TemplateInputs:
-    """Gather all template values (interactively unless ``non_interactive``)."""
+    """Gather all template values (interactively unless `non_interactive`)."""
     project_default = slugify_project(ROOT.name)
     project = slugify_project(
         ask("Project name (PyPI-style)", project_default, non_interactive=non_interactive)
@@ -185,7 +189,7 @@ def collect_inputs(*, non_interactive: bool) -> TemplateInputs:
 
 
 def rename_package_dir(package: str) -> None:
-    """Rename ``src/my_project`` to ``src/<package>`` (skip if already correct)."""
+    """Rename `src/my_project` to `src/<package>` (skip if already correct)."""
     source = SRC / PLACEHOLDER_PACKAGE
     target = SRC / package
     if not source.exists():
@@ -239,7 +243,7 @@ def update_pyproject(inputs: TemplateInputs) -> None:
 
 
 def update_version_file(inputs: TemplateInputs) -> None:
-    """Point ``importlib.metadata.version(...)`` at the new project name."""
+    """Point `importlib.metadata.version(...)` at the new project name."""
     version_file = SRC / inputs.package / "__version__.py"
     if not version_file.exists():
         return
@@ -255,36 +259,31 @@ def update_readme(inputs: TemplateInputs) -> None:
     text = README.read_text()
     text = text.replace(PLACEHOLDER_DISPLAY, inputs.display)
     text = text.replace(PLACEHOLDER_DESCRIPTION, inputs.description)
-    text = text.replace(f"src/{PLACEHOLDER_PACKAGE}/", f"src/{inputs.package}/")
+    text = text.replace(PLACEHOLDER_PACKAGE, inputs.package)
     README.write_text(text)
     print("  - updated README.md")
 
 
-def update_test_imports(package: str) -> None:
-    """Rewrite ``from my_project...`` imports under ``tests/`` to use the new package."""
-    if package == PLACEHOLDER_PACKAGE:
-        return
-    pattern_from = re.compile(rf"\bfrom {re.escape(PLACEHOLDER_PACKAGE)}\b")
-    pattern_import = re.compile(rf"\bimport {re.escape(PLACEHOLDER_PACKAGE)}\b")
-    for path in TESTS.rglob("*.py"):
-        text = path.read_text()
-        new_text = pattern_from.sub(f"from {package}", text)
-        new_text = pattern_import.sub(f"import {package}", new_text)
-        if new_text != text:
-            path.write_text(new_text)
-            print(f"  - rewrote imports in {path.relative_to(ROOT)}")
+def update_openvex(inputs: TemplateInputs) -> None:
+    """Add author and current timestamp to openvex file."""
+    json_string = OPENVEX.read_text()
+    openvex: dict[str, Any] = json.loads(json_string)
+    openvex["author"] = inputs.author_name
+    openvex["timestamp"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: DTZ005 -> we cannot know the timezone of the developer here
+    OPENVEX.write_text(json.dumps(openvex, indent=2))
+    print("  - updated openvex.json")
 
 
 def update_docker_files(inputs: TemplateInputs) -> None:
-    """Rewrite ``my_project`` placeholders in the shipped Docker files.
+    """Rewrite `my_project` placeholders in the shipped Docker files.
 
     Substitution differs by file:
 
-    - ``Dockerfile`` references the Python module path
-      (``CMD ["python", "-m", "my_project"]``) → use ``inputs.package``
+    - `Dockerfile` references the Python module path
+      (`CMD ["python", "-m", "my_project"]`) → use `inputs.package`
       (snake_case).
-    - ``docker-compose.yaml`` and ``.gitlab/ci/docker.yml`` reference image
-      names (``image:`` / ``IMAGE_NAME:``) → use ``inputs.project``
+    - `docker-compose.yaml` and `.gitlab/ci/docker.yml` reference image
+      names (`image:` / `IMAGE_NAME:`) → use `inputs.project`
       (kebab-case, Docker's convention).
     """
     if inputs.package == PLACEHOLDER_PACKAGE:
@@ -308,14 +307,14 @@ def update_docker_files(inputs: TemplateInputs) -> None:
 
 
 def delete_uv_lock() -> None:
-    """Drop the lock file so ``uv sync`` regenerates it under the new name."""
+    """Drop the lock file so `uv sync` regenerates it under the new name."""
     if UV_LOCK.exists():
         UV_LOCK.unlink()
         print("  - deleted uv.lock (will be regenerated on next `uv sync`)")
 
 
 def delete_license() -> None:
-    """Delete the template's ``LICENSE`` file.
+    """Delete the template's `LICENSE` file.
 
     Defensive: shipping a default license (and not deleting the template one)
     would silently make every downstream project inherit the template's terms.
@@ -349,9 +348,9 @@ def self_delete() -> None:
     Called near the end of bootstrap so the running process keeps working
     (the file is removed from disk, but the interpreter has already loaded it).
     Doing this from inside the script — rather than from the Makefile — means
-    a subsequent ``reset_git_history`` call captures a clean working tree.
+    a subsequent `reset_git_history` call captures a clean working tree.
 
-    The surrounding ``scripts/`` directory is intentionally kept: it hosts
+    The surrounding `scripts/` directory is intentionally kept: it hosts
     permanent helper scripts and project-specific ones might be added later
     there.
     """
@@ -383,7 +382,7 @@ def decide_git_reset(*, override: bool | None, non_interactive: bool) -> bool:
 
 
 def _git_default_branch() -> str:
-    """Return the user's configured ``init.defaultBranch``, falling back to ``main``."""
+    """Return the user's configured `init.defaultBranch`, falling back to `main`."""
     try:
         out = subprocess.check_output(
             ["git", "config", "--get", "init.defaultBranch"],
@@ -396,10 +395,10 @@ def _git_default_branch() -> str:
 
 
 def reset_git_history(*, author_name: str, author_email: str) -> None:
-    """Wipe ``.git/`` and create a fresh repo with a single initial commit.
+    """Wipe `.git/` and create a fresh repo with a single initial commit.
 
-    Author identity is passed via ``GIT_AUTHOR_*`` / ``GIT_COMMITTER_*`` env
-    vars so the commit succeeds even when ``git config user.{name,email}`` is
+    Author identity is passed via `GIT_AUTHOR_*` / `GIT_COMMITTER_*` env
+    vars so the commit succeeds even when `git config user.{name,email}` is
     unset globally — which is common on fresh machines.
     """
     if shutil.which("git") is None:
@@ -450,6 +449,7 @@ def print_plan(inputs: TemplateInputs, *, reset_git: bool) -> None:
     print(f"  - set [project].authors = {author!r}")
     print(f"  - set [tool.uv.build-backend].module-name = {inputs.package!r}")
     print(f"  - replace placeholders in README.md ({PLACEHOLDER_DISPLAY!r}, project structure)")
+    print(f"  - add author ({inputs.author_name}) and current timestamp to openvex.json")
     print(f"  - rewrite `{PLACEHOLDER_PACKAGE}` imports under tests/")
     print(f"  - rewrite `{PLACEHOLDER_PACKAGE}` in Docker files (Dockerfile, compose, CI)")
     print("  - delete uv.lock (regenerated on next `uv sync`)")
@@ -462,7 +462,7 @@ def print_plan(inputs: TemplateInputs, *, reset_git: bool) -> None:
 
 
 def main() -> int:
-    """Run the bootstrap interactively (or non-interactively with ``--yes``)."""
+    """Run the bootstrap interactively (or non-interactively with `--yes`)."""
     parser = argparse.ArgumentParser(
         description="Initialize this template for a new project. Run via `make bootstrap`."
     )
@@ -507,7 +507,7 @@ def main() -> int:
     update_pyproject(inputs)
     update_version_file(inputs)
     update_readme(inputs)
-    update_test_imports(inputs.package)
+    update_openvex(inputs)
     update_docker_files(inputs)
     delete_uv_lock()
     delete_license()

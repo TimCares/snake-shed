@@ -21,7 +21,7 @@ invoked automatically by `make bootstrap` on the very first run. It:
 3. **Rewrites placeholders** in `pyproject.toml` (`[project].name`,
    `description`, `authors`, `[tool.uv.build-backend].module-name`),
    `src/<your_package>/__version__.py`, the `README.md`, any
-   `from my_project...` imports under `tests/`, and the `Dockerfile`,
+   `from my_project...` imports under `tests/`, and the `docker/Dockerfile`,
    `docker-compose.yaml`, and `.gitlab/ci/docker.yml`.
 4. **Deletes `uv.lock`** so the next `uv sync` regenerates it under the new
    project name.
@@ -172,14 +172,14 @@ the `make` target(s) that drive it.
 | Dockerfile lint| [hadolint](https://github.com/hadolint/hadolint) (via Docker) | `dockerfile-check`                | `.hadolint.yaml` (optional)              |
 | Tests          | [pytest](https://docs.pytest.org/) + `pytest-cov` | `test`, `test-cov`                | `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
 | Dep audit      | [py-audit](https://pypi.org/project/py-audit/) | `audit`                           | suppressions from `openvex.json` via `scripts/py_audit_ignores_from_vex.py` |
-| Secret scan    | [gitleaks](https://github.com/gitleaks/gitleaks) | `find-secrets`                    | `.gitleaks.toml`                         |
+| Secret scan    | [gitleaks](https://github.com/gitleaks/gitleaks) | `secrets-check`                    | `.gitleaks.toml`                         |
 | Vuln scan      | [trivy](https://github.com/aquasecurity/trivy) (fs + image) | `trivy`, `trivy-full`, `trivy-image`, `sbom` | `trivy.yaml`, `openvex.json` |
 | Sec. policy    | `SECURITY.md` + `CODEOWNERS`  | (reviewer-gated)                  | `SECURITY.md`, `CODEOWNERS`  |
 | Pre-commit     | [pre-commit](https://pre-commit.com/) | `pre-commit-install`              | `.pre-commit-config.yaml`                |
 | Commit style   | [commitizen](https://commitizen-tools.github.io/commitizen/) | (commit-msg hook)                 | `[tool.commitizen]`                      |
 | Releases       | [python-semantic-release](https://python-semantic-release.readthedocs.io/) | `make release`, `.gitlab/ci/release.yml` | `[tool.semantic_release]`                |
 | CI             | GitLab CI                     | (CI)                              | `.gitlab-ci.yml`, `.gitlab/ci/*.yml`     |
-| Container      | Docker (multi-stage)          | (CI builds on release; locally: `docker buildx build` or `docker compose up -d --build`) | `Dockerfile`, `.dockerignore`, `docker-compose.yaml`, `.gitlab/ci/docker.yml` |
+| Container      | Docker (multi-stage)          | (CI builds on release; locally: `docker buildx build` or `docker compose up -d --build`) | `docker/Dockerfile`, `.dockerignore`, `docker-compose.yaml`, `.gitlab/ci/docker.yml` |
 | Dep updates    | [Renovate](https://docs.renovatebot.com/) (self-hosted in GitLab CI) | (scheduled CI)                    | `renovate.json`, `.gitlab/ci/renovate.yml` |
 
 `make check` runs the full local check suite. Two targets are intentionally
@@ -241,7 +241,7 @@ below; together they take under a minute.
 1. **Delete the files:**
 
    ```bash
-   git rm Dockerfile .dockerignore docker-compose.yaml \
+   git rm -r docker/ .dockerignore docker-compose.yaml \
           .gitlab/ci/docker.yml .gitlab/ci/image-scan.yml
    ```
 
@@ -317,7 +317,7 @@ scheduled job, give it its own opt-in variable rather than reusing this one.
 - `uv.lock` weekly via `lockFileMaintenance` (keeps transitive deps fresh
   even when nothing in `pyproject.toml` changed).
 - `.pre-commit-config.yaml` hook `rev:` pins (`pre-commit` manager).
-- `Dockerfile` and `docker-compose.yaml` base images.
+- `docker/Dockerfile` and `docker-compose.yaml` base images.
 - `.gitlab/ci/*.yml` job `image:` references.
 
 Pre-commit hook revs, ruff (lib + hook), and pytest (+ plugins) are

@@ -1,4 +1,4 @@
-"""Entry point so the package can be run as ``python -m my_project``."""
+"""Entry point of the project."""
 
 from __future__ import annotations
 

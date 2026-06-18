@@ -26,6 +26,11 @@ repos:
       - id: check-executables-have-shebangs
       - id: check-shebang-scripts-are-executable
       - id: debug-statements
+      # Fixers are available for explicit manual invocation only.
+      - id: trailing-whitespace
+        stages: [manual]
+      - id: end-of-file-fixer
+        stages: [manual]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.14
@@ -65,20 +70,18 @@ repos:
     hooks:
       - id: gitleaks
 
-  # Structural validation of the OpenVEX document
-  - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.37.2
-    hooks:
-      - id: check-jsonschema
-        alias: vex-schema
-        name: openvex schema (structural)
-        files: '^openvex\.json$'
-        args:
-          - --schemafile
-          - https://raw.githubusercontent.com/openvex/spec/main/openvex_json_schema.json
-
   - repo: local
     hooks:
+      # Structural validation against the upstream OpenVEX schema with a
+      # project-local relaxation for `statements: []` (no known vulns).
+      - id: vex-schema
+        name: openvex schema (structural)
+        entry: python scripts/check_vex_schema.py
+        language: python
+        additional_dependencies: [jsonschema==4.25.1]
+        files: '^(openvex\.json|scripts/check_vex_schema\.py)$'
+        pass_filenames: false
+
       - id: ty
         name: ty
         entry: make type-check

@@ -1,15 +1,11 @@
-# CODEOWNERS — required reviewers for security-sensitive paths.
-#
-# Format: <path-pattern>  @owner1 @owner2 ...
-# Owners can be GitLab users (@user), groups (@group), sub-groups, or on
+# CODEOWNERS — required reviewers for security-sensitive paths
 
 # --- CI / release pipeline ---
 /.gitlab-ci.yml                @security-team
 /.gitlab/ci/                   @security-team
-/.github/workflows/            @security-team
 
 # --- Container build & runtime ---
-/Dockerfile                    @security-team @platform-team
+/docker/                       @security-team @platform-team
 /.dockerignore                 @platform-team
 /docker-compose.yaml           @platform-team
 

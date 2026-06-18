@@ -38,18 +38,26 @@ wiki/
 
 # Template-internal / dev tooling
 scripts/
+# except the two build-time scripts the distroless build runs: `stage_libs.py`
+# (the `lib-staging` stage runs it to copy missing system .so files in) and
+# `validate_imports.py` (bind-mounted import gate that fails the `hardened`
+# build if any extension module cannot be dynamically linked).
+!scripts/stage_libs.py
+!scripts/validate_imports.py
 Makefile
 .pre-commit-config.yaml
 trivy.yaml
 AGENTS.md
 CLAUDE.md
 
-# Docker
-Dockerfile
+# Docker, image build files live in docker/. The Dockerfile is read via `-f`
+# (not from the context) and the README never ships; only extra-libs.txt must
+# reach the build context, where the lib-staging stage COPYs it.
 .dockerignore
 docker-compose.yaml
 docker-compose.*.yaml
 docker/
+!docker/extra-libs.txt
 
 # IDE / OS
 .vscode/

@@ -1,6 +1,6 @@
 logging:
   level: INFO
-  format: console
+  format: json  # for log collectors
 my_config_field: my_config_field_value
 my_secret:
   provider: env

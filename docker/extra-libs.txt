@@ -1,0 +1,30 @@
+# System shared libraries to force-stage into the distroless image
+#
+# Consumed by scripts/stage_libs.py during the Docker build (the `lib-staging`
+# stage). One SONAME per line. Blank lines and `#` comments are ignored.
+#
+# Needed when:
+#   The build already stages every library your wheels declare as a link-time
+#   dependency (their DT_NEEDED entries, discovered automatically with `ldd`).
+#   You only need an entry here for a library that is loaded *lazily* at runtime
+#   via dlopen(), those carry no DT_NEEDED entry, so `ldd` cannot see them, and
+#   the distroless runtime will be missing them.
+#
+#   Symptom: the import smoke test passes, but at run time you hit
+#     OSError: libfoo.so.1: cannot open shared object file: No such file or directory
+#   from deep inside a dependency (a codec, an optional backend, a plugin).
+#
+# Add a library:
+#   Add the exact SONAME (the file name the error names), e.g.:
+#     libfoo.so.1
+#   then rebuild. stage_libs.py locates it in the builder's system lib dirs and
+#   copies it into the image. If the name is wrong or the providing package is
+#   absent from the builder, the build fails loudly with a clear message.
+#
+# PHILOSOPHY
+#   This file is the precise, clear alternative to shipping a whole Debian
+#   userland "just in case". Every line is a system library we have consciously(!)
+#   chosen to ship into the hardened image, keep it short and justified. If you
+#   find yourself adding many entries, prefer the `runtime-debian` build target
+#   (full userland) for local iteration and revisit which libraries are truly
+#   needed before going to production on distroless.

@@ -6,4 +6,3 @@ title = "Gitleaks"
 [extend]
 # Extend the default gitleaks ruleset
 useDefault = true
- 

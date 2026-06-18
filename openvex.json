@@ -2,22 +2,7 @@
   "@context": "https://openvex.dev/ns/v0.2.0",
   "@id": "https://openvex.dev/docs/public/vex-project-template",
   "author": "Project Maintainers",
-  "timestamp": "2026-05-26T00:00:00Z",
+  "timestamp": "2026-06-15T14:13:08Z",
   "version": 1,
-  "statements": [
-    {
-      "vulnerability": {
-        "name": "CVE-2022-42969",
-        "aliases": ["PYSEC-2022-42969", "GHSA-w596-4wvx-j9j6"]
-      },
-      "products": [
-        { "@id": "pkg:pypi/py" }
-      ],
-      "status": "not_affected",
-      "justification": "vulnerable_code_not_in_execute_path",
-      "impact_statement": "ReDoS in `py.path.svnwc` (Subversion working-copy path support). This project does not use SVN, does not import `py.path`, and only pulls `py` as a transitive dev dependency of pytest. The vulnerable code is never executed.",
-      "timestamp": "2026-05-26T00:00:00Z",
-      "last_updated": "2026-05-26T00:00:00Z"
-    }
-  ]
+  "statements": []
 }

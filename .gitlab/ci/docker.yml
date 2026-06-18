@@ -1,12 +1,6 @@
 # Builds and pushes the Docker image on every released version.
 
 variables:
-  # Full image path to push to (registry + optional sub-path). Defaults
-  # to this project's GitLab container registry — works out of the box
-  # for any GitLab project. For multi-image projects, append a sub-path:
-  #   IMAGE_NAME: "$CI_REGISTRY_IMAGE/api"
-  # For other registries (Docker Hub, GHCR, ECR …), override entirely
-  # and provide registry credentials via the docker login below.
   IMAGE_NAME: $CI_REGISTRY_IMAGE
 
 docker:
@@ -17,6 +11,7 @@ docker:
   variables:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
+    PLATFORMS: "linux/amd64 linux/arm64"
   needs:
     - job: semantic-release
       artifacts: true
@@ -45,6 +40,8 @@ docker:
     # --push: publish the runnable image plus any BuildKit attestation
     #         manifests in one transaction. Regular `docker push` cannot add
     #         these build attestations after the fact.
+    # --platform: build for every platform in $PLATFORMS (comma-joined). Multi-arch
+    #             doubles registry storage but is more flexible/convenient.
     # --sbom=true: generate an SPDX SBOM of the image (via BuildKit's bundled
     #              syft scanner) and attach it as a BuildKit in-toto
     #              attestation manifest on the pushed image index.
@@ -54,8 +51,14 @@ docker:
     #                       SLSA L3 compliance.
     # --metadata-file: emit a JSON with the resulting manifest digest, which
     #                 is then used as an artifact
+    # -f docker/Dockerfile: the Dockerfile lives under docker/, but the build
+    #                 context stays the repo root (it copies src/, scripts/, and
+    #                 docker/extra-libs.txt from there).
     - >-
-      docker buildx build --push
+      docker buildx build
+      -f docker/Dockerfile
+      --push
+      --platform "$(echo "$PLATFORMS" | tr ' ' ',')"
       --sbom=true
       --provenance=mode=max
       --metadata-file image-metadata.json
@@ -68,18 +71,23 @@ docker:
     - IMG_REF="${IMAGE_NAME}@${IMAGE_DIGEST}"
     - echo "IMG_REF=$IMG_REF" >> image.env
     - |
-      docker buildx imagetools inspect "$IMG_REF" \
-        --format '{{json .SBOM.SPDX}}' > image-sbom.spdx.json
-      docker buildx imagetools inspect "$IMG_REF" \
-        --format '{{json .Provenance.SLSA}}' > image-provenance.json
-      if [ ! -s image-sbom.spdx.json ] || [ "$(cat image-sbom.spdx.json)" = "null" ]; then
-        echo "ERROR: buildx did not attach an SBOM to $IMG_REF" >&2
-        exit 1
-      fi
-      if [ ! -s image-provenance.json ] || [ "$(cat image-provenance.json)" = "null" ]; then
-        echo "ERROR: buildx did not attach SLSA provenance to $IMG_REF" >&2
-        exit 1
-      fi
+      for platform in $PLATFORMS; do
+        safe=$(echo "$platform" | tr '/' '-')
+        sbom_out="image-sbom.${safe}.spdx.json"
+        prov_out="image-provenance.${safe}.json"
+        docker buildx imagetools inspect "$IMG_REF" \
+          --format "{{json (index .SBOM \"$platform\").SPDX}}" > "$sbom_out"
+        docker buildx imagetools inspect "$IMG_REF" \
+          --format "{{json (index .Provenance \"$platform\").SLSA}}" > "$prov_out"
+        if [ ! -s "$sbom_out" ] || [ "$(cat "$sbom_out")" = "null" ]; then
+          echo "ERROR: buildx did not attach an SBOM for $platform to $IMG_REF" >&2
+          exit 1
+        fi
+        if [ ! -s "$prov_out" ] || [ "$(cat "$prov_out")" = "null" ]; then
+          echo "ERROR: buildx did not attach SLSA provenance for $platform to $IMG_REF" >&2
+          exit 1
+        fi
+      done
   after_script:
     - docker logout "$CI_REGISTRY"
   artifacts:
@@ -87,5 +95,5 @@ docker:
       dotenv: image.env
     paths:
       - image-metadata.json
-      - image-sbom.spdx.json
-      - image-provenance.json
+      - image-sbom.*.spdx.json
+      - image-provenance.*.json

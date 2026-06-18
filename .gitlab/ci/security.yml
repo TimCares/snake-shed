@@ -12,7 +12,7 @@ sbom:
   extends: .uv-base
   stage: security
   script:
-    - make sbom 
+    - make sbom
   artifacts:
     name: "sbom-$CI_COMMIT_SHORT_SHA"
     paths:

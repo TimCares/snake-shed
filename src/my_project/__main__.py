@@ -7,7 +7,7 @@ import sys
 import structlog
 
 from .config import get_config
-from .utils.logging import configure_logging
+from .utils import configure_logging
 
 logger = structlog.get_logger(__name__)
 

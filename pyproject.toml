@@ -190,7 +190,7 @@ exclude_lines = [
 # =============================================================================
 
 [tool.codespell]
-skip = '' # comma-separated (glob) paths
+# skip = 'path/to/my_file.txt,' # comma-separated (glob) paths
 
 # =============================================================================
 # Semantic Release — CI version bumps, changelog, releases

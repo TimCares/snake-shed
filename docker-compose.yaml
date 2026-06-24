@@ -27,3 +27,9 @@ services:
         limits:
           cpus: "1.0"
           memory: 512M
+    logging:
+      driver: "json-file"
+      options: # 10*10m => 100MB max log size
+        max-size: "10m"
+        max-file: "10"
+        compress: true
